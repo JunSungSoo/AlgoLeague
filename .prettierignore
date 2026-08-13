@@ -1,0 +1,8 @@
+.next
+node_modules
+output
+public
+coverage
+next-env.d.ts
+yarn.lock
+*.min.*

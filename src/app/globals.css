@@ -1,0 +1,115 @@
+@font-face {
+    font-family: "Pretendard";
+    src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-Thin.woff2")
+        format("woff2");
+    font-weight: 100;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Pretendard";
+    src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-ExtraLight.woff2")
+        format("woff2");
+    font-weight: 200;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Pretendard";
+    src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-Light.woff2")
+        format("woff2");
+    font-weight: 300;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Pretendard";
+    src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-Regular.woff2")
+        format("woff2");
+    font-weight: 400;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Pretendard";
+    src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-Medium.woff2")
+        format("woff2");
+    font-weight: 500;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Pretendard";
+    src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-SemiBold.woff2")
+        format("woff2");
+    font-weight: 600;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Pretendard";
+    src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-Bold.woff2")
+        format("woff2");
+    font-weight: 700;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Pretendard";
+    src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-ExtraBold.woff2")
+        format("woff2");
+    font-weight: 800;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Pretendard";
+    src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-Black.woff2")
+        format("woff2");
+    font-weight: 900;
+    font-display: swap;
+}
+
+body {
+    margin: 0;
+}
+
+body,
+button,
+input,
+select,
+textarea {
+    font-family: Pretendard, Arial, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+}
+
+.algoleague-global-ripple {
+    position: fixed;
+    z-index: 2147483647;
+    display: block;
+    width: 10px;
+    height: 10px;
+    pointer-events: none;
+    border-radius: 9999px;
+    background: rgba(141, 86, 55, 0.24);
+    box-shadow: 0 0 0 1px rgba(141, 86, 55, 0.08);
+    transform: translate(-50%, -50%) scale(0.2);
+    transform-origin: center;
+    opacity: 0.72;
+    animation: algoleague-global-ripple 520ms cubic-bezier(0.16, 0.72, 0.28, 1) forwards;
+}
+
+@keyframes algoleague-global-ripple {
+    55% {
+        opacity: 0.25;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(8);
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .algoleague-global-ripple {
+        animation-duration: 1ms;
+    }
+}

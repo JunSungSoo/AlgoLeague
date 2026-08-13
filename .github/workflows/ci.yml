@@ -1,0 +1,26 @@
+name: CI
+on:
+    pull_request:
+    push:
+        branches: [main]
+permissions:
+    contents: read
+jobs:
+    verify:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with: { node-version: 22, cache: yarn }
+            - run: yarn install --frozen-lockfile
+            - run: yarn typecheck
+            - run: yarn lint
+            - run: yarn test
+            - run: yarn workspace algorithm-champions-back typecheck
+            - run: yarn workspace algorithm-champions-back lint
+            - run: yarn workspace algorithm-champions-back test
+            - run: yarn workspace algorithm-champions-back build
+            - run: yarn audit --groups dependencies --level high
+            - run: yarn build
+            - run: docker build -t algorithm-champions-web:${{ github.sha }} .
+            - run: docker build -f algorithm-champions-back/Dockerfile -t algorithm-champions-back:${{ github.sha }} .
