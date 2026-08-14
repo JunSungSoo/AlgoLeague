@@ -4,18 +4,12 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Box, Flex, Text } from "@chakra-ui/react";
-import { globalLoadingEvents } from "@/lib/global-loading";
+import { GLOBAL_LOADING_EVENTS } from "@/lib/global-loading";
 
-const showDelayMs = 160;
-const minimumVisibleMs = 420;
-const runningFrames = [
-    "/brand/loading/frames-v4/algodal-run-frame-1.png",
-    "/brand/loading/frames-v4/algodal-run-frame-2.png",
-    "/brand/loading/frames-v4/algodal-run-frame-3.png",
-] as const;
+const SHOW_DELAY_MS = 160;
+const MINIMUM_VISIBLE_MS = 420;
 
 export function GlobalLoadingLayer() {
-    const pathname = usePathname();
     const activeCount = useRef(0);
     const showTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -23,16 +17,16 @@ export function GlobalLoadingLayer() {
     const visibleRef = useRef(false);
     const [visible, setVisible] = useState(false);
     const [dotCount, setDotCount] = useState(1);
-    const [runFrame, setRunFrame] = useState(0);
+    const pathname = usePathname();
 
     useEffect(() => {
         const originalFetch = window.fetch.bind(window);
         const trackedFetch: typeof window.fetch = async (...args) => {
-            window.dispatchEvent(new Event(globalLoadingEvents.start));
+            window.dispatchEvent(new Event(GLOBAL_LOADING_EVENTS.start));
             try {
                 return await originalFetch(...args);
             } finally {
-                window.dispatchEvent(new Event(globalLoadingEvents.end));
+                window.dispatchEvent(new Event(GLOBAL_LOADING_EVENTS.end));
             }
         };
         window.fetch = trackedFetch;
@@ -57,11 +51,11 @@ export function GlobalLoadingLayer() {
                 destination.pathname === window.location.pathname
             )
                 return;
-            window.dispatchEvent(new Event(globalLoadingEvents.start));
+            window.dispatchEvent(new Event(GLOBAL_LOADING_EVENTS.start));
         };
         document.addEventListener("click", trackNavigation);
         const trackHistoryNavigation = () =>
-            window.dispatchEvent(new Event(globalLoadingEvents.start));
+            window.dispatchEvent(new Event(GLOBAL_LOADING_EVENTS.start));
         window.addEventListener("popstate", trackHistoryNavigation);
 
         return () => {
@@ -81,10 +75,10 @@ export function GlobalLoadingLayer() {
             if (activeCount.current !== 1 || visibleRef.current || showTimer.current) return;
             showTimer.current = setTimeout(() => {
                 showTimer.current = null;
-                shownAt.current = Date.now();
+                shownAt.current = performance.now();
                 visibleRef.current = true;
                 setVisible(true);
-            }, showDelayMs);
+            }, SHOW_DELAY_MS);
         };
         const hide = () => {
             activeCount.current = Math.max(0, activeCount.current - 1);
@@ -93,7 +87,10 @@ export function GlobalLoadingLayer() {
                 clearTimeout(showTimer.current);
                 showTimer.current = null;
             }
-            const remaining = Math.max(0, minimumVisibleMs - (Date.now() - shownAt.current));
+            const remaining = Math.max(
+                0,
+                MINIMUM_VISIBLE_MS - (performance.now() - shownAt.current),
+            );
             hideTimer.current = setTimeout(() => {
                 hideTimer.current = null;
                 if (activeCount.current > 0) return;
@@ -101,11 +98,11 @@ export function GlobalLoadingLayer() {
                 setVisible(false);
             }, remaining);
         };
-        window.addEventListener(globalLoadingEvents.start, show);
-        window.addEventListener(globalLoadingEvents.end, hide);
+        window.addEventListener(GLOBAL_LOADING_EVENTS.start, show);
+        window.addEventListener(GLOBAL_LOADING_EVENTS.end, hide);
         return () => {
-            window.removeEventListener(globalLoadingEvents.start, show);
-            window.removeEventListener(globalLoadingEvents.end, hide);
+            window.removeEventListener(GLOBAL_LOADING_EVENTS.start, show);
+            window.removeEventListener(GLOBAL_LOADING_EVENTS.end, hide);
             if (showTimer.current) clearTimeout(showTimer.current);
             if (hideTimer.current) clearTimeout(hideTimer.current);
         };
@@ -121,16 +118,7 @@ export function GlobalLoadingLayer() {
     }, [visible]);
 
     useEffect(() => {
-        if (!visible) return;
-        const interval = window.setInterval(
-            () => setRunFrame((current) => (current + 1) % runningFrames.length),
-            130,
-        );
-        return () => window.clearInterval(interval);
-    }, [visible]);
-
-    useEffect(() => {
-        window.dispatchEvent(new Event(globalLoadingEvents.end));
+        window.dispatchEvent(new Event(GLOBAL_LOADING_EVENTS.end));
     }, [pathname]);
 
     if (!visible) return null;
@@ -140,54 +128,35 @@ export function GlobalLoadingLayer() {
             position="fixed"
             inset="0"
             zIndex="max"
+            direction="column"
             align="center"
             justify="center"
-            bg="rgba(52, 37, 30, 0.34)"
-            backdropFilter="blur(5px)"
+            bg="rgba(0, 0, 0, 0.68)"
             role="status"
             aria-live="polite"
             aria-label="페이지를 불러오는 중"
         >
-            <Flex
-                minW={{ base: "210px", md: "238px" }}
-                px="26px"
-                pt="18px"
-                pb="22px"
-                direction="column"
-                align="center"
-                borderWidth="1px"
-                borderColor="rgba(255, 253, 248, 0.78)"
-                borderRadius="24px"
-                bg="rgba(255, 249, 240, 0.94)"
-                boxShadow="0 22px 70px rgba(52, 37, 30, 0.28)"
+            <Box w={{ base: "230px", md: "270px" }} aspectRatio="1" position="relative">
+                <Image
+                    src="/brand/loading/study/algodal-studying.png?v=1"
+                    alt="책상에서 공부하고 있는 알고달"
+                    fill
+                    unoptimized
+                    priority
+                    sizes="270px"
+                    style={{ objectFit: "contain" }}
+                />
+            </Box>
+            <Text
+                mt="-8px"
+                color="#fff8ea"
+                fontSize="16px"
+                fontWeight="800"
+                letterSpacing="0.03em"
+                textShadow="0 2px 8px rgba(0, 0, 0, 0.7)"
             >
-                <Box w={{ base: "150px", md: "170px" }} aspectRatio="1" position="relative">
-                    {runningFrames.map((src, index) => (
-                        <Image
-                            key={src}
-                            src={src}
-                            alt={index === 0 ? "달리고 있는 알고달" : ""}
-                            fill
-                            unoptimized
-                            priority
-                            sizes="170px"
-                            style={{
-                                display: runFrame === index ? "block" : "none",
-                                objectFit: "contain",
-                            }}
-                        />
-                    ))}
-                </Box>
-                <Text
-                    mt="-7px"
-                    color="accent"
-                    fontSize="16px"
-                    fontWeight="800"
-                    letterSpacing="0.03em"
-                >
-                    Loading{".".repeat(dotCount)}
-                </Text>
-            </Flex>
+                Loading{".".repeat(dotCount)}
+            </Text>
         </Flex>
     );
 }
