@@ -1,4 +1,4 @@
-export const demoUser = {
+export const DEMO_USER = {
     nickname: "알고리즘러",
     grade: 6,
     solved: 12,
@@ -7,7 +7,7 @@ export const demoUser = {
     progress: { current: 3, required: 6, next: 5 },
 };
 
-export const demoProblems = [
+export const DEMO_PROBLEMS = [
     {
         id: "minimum-route",
         title: "별빛 정거장의 최소 비용",
@@ -60,9 +60,9 @@ export const demoProblems = [
     },
 ];
 
-export const dailyProblem = demoProblems[0];
+export const DAILY_PROBLEM = DEMO_PROBLEMS[0];
 
-export const generationJobs = [
+export const GENERATION_JOBS = [
     {
         id: "GEN-1842",
         title: "격자 위의 택배 로봇",
@@ -97,7 +97,7 @@ export const generationJobs = [
     },
 ];
 
-export const rankings = [
+export const RANKINGS = [
     [1, "코드바람", 18, "91%", "2일"],
     [2, "새벽컴파일", 17, "88%", "오늘"],
     [3, "초록커서", 16, "94%", "오늘"],

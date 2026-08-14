@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Provider } from "@/components/provider";
-import { AppShell } from "@/components/app-shell";
+import { Provider } from "@/components/Provider";
+import { AppShell } from "@/components/AppShell";
 
 export const metadata: Metadata = {
     title: "알고리그",

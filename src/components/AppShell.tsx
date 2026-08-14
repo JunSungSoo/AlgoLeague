@@ -41,17 +41,23 @@ import {
 } from "@/lib/auth-client";
 import { canManage } from "@/lib/permissions";
 import { startGlobalLoading } from "@/lib/global-loading";
+import { ROUTES } from "@/lib/route-paths";
 
-const nav = [
-    { href: "/", label: "홈", caption: "오늘의 학습", icon: Home },
-    { href: "/problems", label: "문제", caption: "문제 탐색", icon: Code2 },
-    { href: "/my-problems", label: "나의 문제", caption: "풀이 기록", icon: BookOpenCheck },
-    { href: "/ranking", label: "랭킹", caption: "등급별 순위", icon: Medal },
-    { href: "/profile", label: "프로필", caption: "성장 기록", icon: UserRound },
-    { href: "/admin", label: "운영", caption: "관리자 도구", icon: Settings },
+const NAV_ITEMS = [
+    { href: ROUTES.HOME, label: "홈", caption: "오늘의 학습", icon: Home },
+    { href: ROUTES.PROBLEMS, label: "문제", caption: "문제 탐색", icon: Code2 },
+    { href: ROUTES.MY_PROBLEMS, label: "나의 문제", caption: "풀이 기록", icon: BookOpenCheck },
+    { href: ROUTES.RANKING, label: "랭킹", caption: "등급별 순위", icon: Medal },
+    { href: ROUTES.PROFILE, label: "프로필", caption: "성장 기록", icon: UserRound },
+    { href: ROUTES.ADMIN, label: "운영", caption: "관리자 도구", icon: Settings },
 ];
-const publicPath = (pathname: string) =>
-    pathname === "/login" || pathname === "/signup" || pathname.startsWith("/account/");
+function isPublicPath(pathname: string) {
+    return (
+        pathname === ROUTES.LOGIN ||
+        pathname === ROUTES.SIGNUP ||
+        pathname.startsWith(ROUTES.ACCOUNT_PREFIX)
+    );
+}
 
 function Brand() {
     return (
@@ -103,10 +109,10 @@ function UserAvatar({ user }: { user: AuthUser | null }) {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-    const pathname = usePathname();
-    const router = useRouter();
     const [user, setUser] = useState<AuthUser | null>(null);
     const [menuOpen, setMenuOpen] = useState(false);
+    const pathname = usePathname();
+    const router = useRouter();
     useEffect(() => {
         const sync = () => setUser(currentUser());
         const frame = requestAnimationFrame(sync);
@@ -117,7 +123,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         };
     }, []);
     useEffect(() => {
-        if (publicPath(pathname)) return;
+        if (isPublicPath(pathname)) return;
         let active = true;
         let redirecting = false;
         const moveToLogin = () => {
@@ -127,7 +133,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             setUser(null);
             setMenuOpen(false);
             startGlobalLoading();
-            router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+            router.replace(ROUTES.LOGIN_WITH_NEXT(pathname));
         };
         const onExpired = () => moveToLogin();
         window.addEventListener("algorithm-champions-session-expired", onExpired);
@@ -156,11 +162,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             setUser(null);
             setMenuOpen(false);
             startGlobalLoading();
-            router.push("/login");
+            router.push(ROUTES.LOGIN);
         }
     }
-    if (publicPath(pathname)) return <>{children}</>;
-    const visibleNav = nav.filter((item) => item.href !== "/admin" || canManage(user?.role));
+    if (isPublicPath(pathname)) return <>{children}</>;
+    const visibleNav = NAV_ITEMS.filter(
+        (item) => item.href !== ROUTES.ADMIN || canManage(user?.role),
+    );
     const current =
         visibleNav.find((item) =>
             item.href === "/" ? pathname === "/" : pathname.startsWith(item.href),
@@ -217,7 +225,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                             boxShadow: "0 0 0 2px var(--chakra-colors-accent-subtle)",
                         }}
                     >
-                        <NextLink href="/profile" aria-label="내 프로필로 이동">
+                        <NextLink href={ROUTES.PROFILE} aria-label="내 프로필로 이동">
                             <UserAvatar user={user} />
                         </NextLink>
                     </Link>
