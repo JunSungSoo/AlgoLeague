@@ -9,3 +9,6 @@ dist/
 .pnp.*
 .yarn/
 *.tsbuildinfo
+/output
+/docs
+*.md
