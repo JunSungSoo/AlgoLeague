@@ -2,6 +2,7 @@
 
 import NextLink from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
     Alert,
     Badge,
@@ -15,7 +16,9 @@ import {
     Text,
 } from "@chakra-ui/react";
 import { authGet } from "@/lib/auth-client";
-import { CodeWorkspace } from "./workspace";
+import { startGlobalLoading } from "@/lib/global-loading";
+import { ROUTES } from "@/lib/route-paths";
+import { CodeWorkspace, type FunctionSampleTest, type FunctionSpec } from "./Workspace";
 
 type Problem = {
     slug: string;
@@ -30,8 +33,12 @@ type Problem = {
     secondaryTags: string[];
     timeLimitMs: number;
     solved: boolean;
+    acceptedSubmissionId: string | null;
     attempts: number;
     submissionLimit: number;
+    executionMode: "stdio" | "function";
+    functionSpec: FunctionSpec | null;
+    sampleTests: FunctionSampleTest[];
 };
 const Sample = ({ children }: { children: React.ReactNode }) => (
     <Box
@@ -52,11 +59,23 @@ const Sample = ({ children }: { children: React.ReactNode }) => (
 export function ProblemDetail({ id }: { id: string }) {
     const [problem, setProblem] = useState<Problem | null>(null);
     const [error, setError] = useState("");
+    const router = useRouter();
     useEffect(() => {
         let active = true;
         void authGet<{ problem: Problem }>(`/api/problems/${encodeURIComponent(id)}`)
             .then((result) => {
-                if (active) setProblem(result.problem);
+                if (!active) return;
+                if (result.problem.solved && result.problem.acceptedSubmissionId) {
+                    startGlobalLoading();
+                    router.replace(
+                        ROUTES.PROBLEM_COMPLETION(
+                            result.problem.slug,
+                            result.problem.acceptedSubmissionId,
+                        ),
+                    );
+                    return;
+                }
+                setProblem(result.problem);
             })
             .catch((value) => {
                 if (active)
@@ -67,7 +86,7 @@ export function ProblemDetail({ id }: { id: string }) {
         return () => {
             active = false;
         };
-    }, [id]);
+    }, [id, router]);
     if (error)
         return (
             <Box maxW="900px" mx="auto" px="20px" py="48px">
@@ -79,7 +98,7 @@ export function ProblemDetail({ id }: { id: string }) {
                     </Alert.Content>
                 </Alert.Root>
                 <Link asChild color="accent" fontWeight="800" display="inline-block" mt="18px">
-                    <NextLink href="/problems">← 문제 목록으로 돌아가기</NextLink>
+                    <NextLink href={ROUTES.PROBLEMS}>← 문제 목록으로 돌아가기</NextLink>
                 </Link>
             </Box>
         );
@@ -105,7 +124,7 @@ export function ProblemDetail({ id }: { id: string }) {
                 borderColor="line"
             >
                 <Link asChild color="accent" fontWeight="800" fontSize="11px" letterSpacing=".1em">
-                    <NextLink href="/problems">← 문제 목록</NextLink>
+                    <NextLink href={ROUTES.PROBLEMS}>← 문제 목록</NextLink>
                 </Link>
                 <Flex gap="8px" mt="24px" wrap="wrap">
                     <Badge borderRadius="full" bg="brand.300" color="brand.900" px="10px" py="6px">
@@ -163,7 +182,12 @@ export function ProblemDetail({ id }: { id: string }) {
                     </Text>
                 </Box>
             </Box>
-            <CodeWorkspace problemId={problem.slug} />
+            <CodeWorkspace
+                problemId={problem.slug}
+                executionMode={problem.executionMode}
+                functionSpec={problem.functionSpec}
+                sampleTests={problem.sampleTests}
+            />
         </Grid>
     );
 }

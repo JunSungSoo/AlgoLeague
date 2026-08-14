@@ -1,4 +1,4 @@
-import { ProblemDetail } from "./problem-detail";
+import { ProblemDetail } from "./ProblemDetail";
 
 export default async function ProblemPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;

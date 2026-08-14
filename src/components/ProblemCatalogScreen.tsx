@@ -19,7 +19,8 @@ import {
 import { ArrowRight, Check, LockKeyhole, Search } from "lucide-react";
 import { authGet } from "@/lib/auth-client";
 import { sortProblemCatalog, type GradeSortDirection } from "@/lib/problem-catalog";
-import { GradeBadge, PageHeader, Panel } from "@/components/primitives";
+import { ROUTES } from "@/lib/route-paths";
+import { GradeBadge, PageHeader, Panel } from "@/components/Primitives";
 
 type ProblemItem = {
     slug: string;
@@ -308,7 +309,7 @@ function ProblemRow({ problem }: { problem: ProblemItem }) {
             }}
             transition="all .15s"
         >
-            <NextLink href={`/problems/${problem.slug}`}>{card}</NextLink>
+            <NextLink href={ROUTES.PROBLEM(problem.slug)}>{card}</NextLink>
         </Link>
     ) : (
         <Box w="full" title="현재 등급에서는 아직 접근할 수 없습니다.">

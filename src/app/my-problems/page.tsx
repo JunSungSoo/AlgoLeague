@@ -1,4 +1,4 @@
-import { ProblemCatalogScreen } from "@/components/problem-catalog-screen";
+import { ProblemCatalogScreen } from "@/components/ProblemCatalogScreen";
 
 export default function MyProblemsPage() {
     return (
