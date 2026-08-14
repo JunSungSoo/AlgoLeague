@@ -29,8 +29,6 @@ type Problem = {
     constraints: string[];
     samples: Array<{ input: string; output: string }>;
     grade: number;
-    primaryTag: string;
-    secondaryTags: string[];
     timeLimitMs: number;
     solved: boolean;
     acceptedSubmissionId: string | null;
@@ -130,14 +128,6 @@ export function ProblemDetail({ id }: { id: string }) {
                     <Badge borderRadius="full" bg="brand.300" color="brand.900" px="10px" py="6px">
                         {problem.grade}급
                     </Badge>
-                    <Badge borderRadius="full" px="10px">
-                        {problem.primaryTag}
-                    </Badge>
-                    {problem.secondaryTags.map((tag) => (
-                        <Badge key={tag} borderRadius="full" px="10px">
-                            {tag}
-                        </Badge>
-                    ))}
                     <Badge borderRadius="full" px="10px">
                         시간 {problem.timeLimitMs / 1000}초
                     </Badge>
