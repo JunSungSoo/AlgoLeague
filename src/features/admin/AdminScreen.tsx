@@ -24,14 +24,17 @@ type Overview = {
     metrics: {
         published: number;
         inProgress: number;
+        stopped: number;
         reviewRequired: number;
         failureRate24h: number;
+        workerOnline: boolean;
     };
     jobs: Array<{
         id: string;
         title: string;
         grade: number;
         state: string;
+        databaseState: string;
         blueprint: string;
         model: string;
         score: number | null;
@@ -40,14 +43,19 @@ type Overview = {
         updatedAt: string;
     }>;
 };
+const STATE_LABELS: Record<string, string> = {
+    STOPPED: "중지됨",
+};
 function statePalette(state: string) {
-    return state.startsWith("REJECTED")
-        ? { bg: "red.50", color: "red.700" }
-        : state.includes("REVIEW")
-          ? { bg: "orange.50", color: "orange.700" }
-          : state === "PUBLISHED"
-            ? { bg: "green.50", color: "green.700" }
-            : { bg: "blue.50", color: "blue.700" };
+    return state === "STOPPED"
+        ? { bg: "gray.100", color: "gray.700" }
+        : state.startsWith("REJECTED")
+          ? { bg: "red.50", color: "red.700" }
+          : state.includes("REVIEW")
+            ? { bg: "orange.50", color: "orange.700" }
+            : state === "PUBLISHED"
+              ? { bg: "green.50", color: "green.700" }
+              : { bg: "blue.50", color: "blue.700" };
 }
 export default function AdminPage() {
     const [data, setData] = useState<Overview | null>(null);
@@ -55,18 +63,27 @@ export default function AdminPage() {
     const [refreshKey, setRefreshKey] = useState(0);
     useEffect(() => {
         let active = true;
-        void authGet<Overview>("/api/admin/overview")
-            .then((result) => {
-                if (active) setData(result);
-            })
-            .catch((value) => {
-                if (active)
-                    setError(
-                        value instanceof Error ? value.message : "운영 현황을 불러오지 못했습니다.",
-                    );
-            });
+        const loadOverview = () =>
+            authGet<Overview>("/api/admin/overview")
+                .then((result) => {
+                    if (active) {
+                        setData(result);
+                        setError("");
+                    }
+                })
+                .catch((value) => {
+                    if (active)
+                        setError(
+                            value instanceof Error
+                                ? value.message
+                                : "운영 현황을 불러오지 못했습니다.",
+                        );
+                });
+        void loadOverview();
+        const interval = window.setInterval(() => void loadOverview(), 30_000);
         return () => {
             active = false;
+            window.clearInterval(interval);
         };
     }, [refreshKey]);
     return (
@@ -82,9 +99,20 @@ export default function AdminPage() {
                 title="문제 생성 운영"
                 action={
                     data && (
-                        <GradeBadge subtle>
-                            DB 기준 · {dayjs(data.generatedAt).tz().format("HH:mm")}
-                        </GradeBadge>
+                        <FlexLayout align="center" gap="7px" wrap="wrap" justify="end">
+                            <Badge
+                                bg={data.metrics.workerOnline ? "green.50" : "gray.100"}
+                                color={data.metrics.workerOnline ? "green.700" : "gray.700"}
+                                borderRadius="full"
+                                px="9px"
+                                py="5px"
+                            >
+                                생성 워커 {data.metrics.workerOnline ? "실행 중" : "중지됨"}
+                            </Badge>
+                            <GradeBadge subtle>
+                                DB 기준 · {dayjs(data.generatedAt).tz().format("HH:mm")}
+                            </GradeBadge>
+                        </FlexLayout>
                     )
                 }
             />
@@ -102,10 +130,11 @@ export default function AdminPage() {
                 </FlexLayout>
             ) : (
                 <>
-                    <SimpleGrid columns={{ base: 2, lg: 4 }} gap="18px">
+                    <SimpleGrid columns={{ base: 2, lg: 5 }} gap="18px">
                         {[
                             ["게시 문제", data.metrics.published],
                             ["진행 중", data.metrics.inProgress],
+                            ["중지됨", data.metrics.stopped],
                             ["검수 필요", data.metrics.reviewRequired],
                             ["24시간 실패율", `${data.metrics.failureRate24h}%`],
                         ].map(([label, value]) => (
@@ -178,8 +207,11 @@ export default function AdminPage() {
                                             <Table.Cell>{job.score ?? "-"}</Table.Cell>
                                             <Table.Cell>{job.attempts}</Table.Cell>
                                             <Table.Cell>
-                                                <Badge {...statePalette(job.state)}>
-                                                    {job.state}
+                                                <Badge
+                                                    {...statePalette(job.state)}
+                                                    title={`DB 상태: ${job.databaseState}`}
+                                                >
+                                                    {STATE_LABELS[job.state] ?? job.state}
                                                 </Badge>
                                             </Table.Cell>
                                             <Table.Cell>
