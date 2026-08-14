@@ -17,6 +17,7 @@ import { authGet } from "@/lib/auth-client";
 import { dayjs } from "@/lib/dayjs-config";
 import { GradeBadge, PageHeader, Panel, SectionHeader } from "@/components/Primitives";
 import { FlexLayout } from "@/components/ui";
+import { ProblemReviewSection } from "./ProblemReviewSection";
 
 type Overview = {
     generatedAt: string;
@@ -51,6 +52,7 @@ function statePalette(state: string) {
 export default function AdminPage() {
     const [data, setData] = useState<Overview | null>(null);
     const [error, setError] = useState("");
+    const [refreshKey, setRefreshKey] = useState(0);
     useEffect(() => {
         let active = true;
         void authGet<Overview>("/api/admin/overview")
@@ -66,7 +68,7 @@ export default function AdminPage() {
         return () => {
             active = false;
         };
-    }, []);
+    }, [refreshKey]);
     return (
         <Box
             maxW="1390px"
@@ -117,6 +119,9 @@ export default function AdminPage() {
                             </Panel>
                         ))}
                     </SimpleGrid>
+                    <ProblemReviewSection
+                        onReviewCompleted={() => setRefreshKey((current) => current + 1)}
+                    />
                     <FlexLayout justify="space-between" align="end" mt="29px" mb="13px">
                         <Box>
                             <Heading as="h2" fontSize="20px">
