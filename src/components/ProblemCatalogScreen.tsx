@@ -39,6 +39,7 @@ type ProblemItem = {
 type ProblemCatalog = {
     userGrade: number;
     accessibleRange: { from: number; to: number };
+    canAccessAllGrades?: boolean;
     items: ProblemItem[];
 };
 
@@ -67,7 +68,11 @@ export function ProblemCatalogScreen({
             .then((result) => {
                 if (active) {
                     setData(result);
-                    setGrade(defaultGrade === "mine" ? String(result.userGrade) : "all");
+                    setGrade(
+                        defaultGrade === "mine" && !result.canAccessAllGrades
+                            ? String(result.userGrade)
+                            : "all",
+                    );
                 }
             })
             .catch((value) => {
@@ -112,7 +117,9 @@ export function ProblemCatalogScreen({
                         <GradeBadge subtle>
                             {endpoint === "/api/my-problems"
                                 ? `제출한 문제 ${data.items.length}개`
-                                : `접근 가능: 9급–${data.accessibleRange.to}급`}
+                                : data.canAccessAllGrades
+                                  ? "관리자 · 전체 등급 접근 가능"
+                                  : `접근 가능: 9급–${data.accessibleRange.to}급`}
                         </GradeBadge>
                     )
                 }
