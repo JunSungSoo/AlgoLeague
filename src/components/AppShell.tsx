@@ -14,6 +14,7 @@ import {
     Icon,
     IconButton,
     Link,
+    Menu,
     Portal,
     Text,
     VStack,
@@ -21,12 +22,13 @@ import {
 import {
     Bell,
     BookOpenCheck,
+    Check,
     Code2,
     Home,
     LogIn,
     LogOut,
     Medal,
-    Menu,
+    Menu as MenuIcon,
     Settings,
     UserRound,
 } from "lucide-react";
@@ -42,14 +44,46 @@ import {
 import { canManage } from "@/lib/permissions";
 import { startGlobalLoading } from "@/lib/global-loading";
 import { ROUTES } from "@/lib/route-paths";
+import { useLocale } from "@/components/LocaleProvider";
+import { LOCALE_OPTIONS, type TranslationKey } from "@/lib/i18n";
 
-const NAV_ITEMS = [
-    { href: ROUTES.HOME, label: "홈", caption: "오늘의 학습", icon: Home },
-    { href: ROUTES.PROBLEMS, label: "문제", caption: "문제 탐색", icon: Code2 },
-    { href: ROUTES.MY_PROBLEMS, label: "나의 문제", caption: "풀이 기록", icon: BookOpenCheck },
-    { href: ROUTES.RANKING, label: "랭킹", caption: "등급별 순위", icon: Medal },
-    { href: ROUTES.PROFILE, label: "프로필", caption: "성장 기록", icon: UserRound },
-    { href: ROUTES.ADMIN, label: "운영", caption: "관리자 도구", icon: Settings },
+const NAV_ITEMS: Array<{
+    href: string;
+    label: TranslationKey;
+    caption: TranslationKey;
+    icon: typeof Home;
+}> = [
+    { href: ROUTES.HOME, label: "nav.home.label", caption: "nav.home.caption", icon: Home },
+    {
+        href: ROUTES.PROBLEMS,
+        label: "nav.problems.label",
+        caption: "nav.problems.caption",
+        icon: Code2,
+    },
+    {
+        href: ROUTES.MY_PROBLEMS,
+        label: "nav.myProblems.label",
+        caption: "nav.myProblems.caption",
+        icon: BookOpenCheck,
+    },
+    {
+        href: ROUTES.RANKING,
+        label: "nav.ranking.label",
+        caption: "nav.ranking.caption",
+        icon: Medal,
+    },
+    {
+        href: ROUTES.PROFILE,
+        label: "nav.profile.label",
+        caption: "nav.profile.caption",
+        icon: UserRound,
+    },
+    {
+        href: ROUTES.ADMIN,
+        label: "nav.admin.label",
+        caption: "nav.admin.caption",
+        icon: Settings,
+    },
 ];
 function isPublicPath(pathname: string) {
     return (
@@ -59,7 +93,7 @@ function isPublicPath(pathname: string) {
     );
 }
 
-function Brand() {
+function Brand({ name }: { name: string }) {
     return (
         <Flex align="center" gap="10px">
             <Flex
@@ -88,7 +122,7 @@ function Brand() {
                     fontWeight="900"
                     letterSpacing="-.02em"
                 >
-                    알고리그
+                    {name}
                 </Text>
                 <Text mt="3px" fontSize="7px" color="muted" letterSpacing=".12em">
                     ALGORITHM LEAGUE
@@ -97,12 +131,20 @@ function Brand() {
         </Flex>
     );
 }
-function UserAvatar({ user }: { user: AuthUser | null }) {
+function UserAvatar({
+    user,
+    guest,
+    profileImage,
+}: {
+    user: AuthUser | null;
+    guest: string;
+    profileImage: string;
+}) {
     return (
         <Avatar.Root size="sm" bg="accentSubtle" color="accent">
-            <Avatar.Fallback name={user?.nickname ?? "게스트"} />
+            <Avatar.Fallback name={user?.nickname ?? guest} />
             {user?.profileImageUrl && (
-                <Avatar.Image src={user.profileImageUrl} alt={`${user.nickname} 프로필 사진`} />
+                <Avatar.Image src={user.profileImageUrl} alt={profileImage} />
             )}
         </Avatar.Root>
     );
@@ -113,6 +155,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const [menuOpen, setMenuOpen] = useState(false);
     const pathname = usePathname();
     const router = useRouter();
+    const { locale, setLocale, t } = useLocale();
     useEffect(() => {
         const sync = () => setUser(currentUser());
         const frame = requestAnimationFrame(sync);
@@ -190,30 +233,97 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 borderColor="line"
             >
                 <IconButton
-                    aria-label="메뉴 열기"
+                    aria-label={t("header.openMenu")}
                     variant="ghost"
                     size="md"
                     color="ink"
                     onClick={() => setMenuOpen(true)}
                 >
-                    <Menu size={21} />
+                    <MenuIcon size={21} />
                 </IconButton>
                 <Link asChild _hover={{ textDecoration: "none" }}>
-                    <NextLink href="/" aria-label="알고리그 홈">
-                        <Brand />
+                    <NextLink href="/" aria-label={t("header.home")}>
+                        <Brand name={t("brand.name")} />
                     </NextLink>
                 </Link>
                 <Box display={{ base: "none", md: "block" }} h="28px" w="1px" bg="line" ml="4px" />
                 <Box display={{ base: "none", md: "block" }}>
                     <Text fontSize="10px" color="muted" letterSpacing=".12em">
-                        {current.caption.toUpperCase()}
+                        {t(current.caption).toUpperCase()}
                     </Text>
                     <Text fontSize="13px" fontWeight="800">
-                        {current.label}
+                        {t(current.label)}
                     </Text>
                 </Box>
                 <Flex ml="auto" align="center" gap={{ base: "4px", md: "9px" }}>
-                    <IconButton aria-label="알림" variant="ghost" color="ink">
+                    <Menu.Root positioning={{ placement: "bottom-end" }}>
+                        <Menu.Trigger asChild>
+                            <IconButton
+                                aria-label={t("header.settings")}
+                                variant="ghost"
+                                color="ink"
+                            >
+                                <Settings size={18} />
+                            </IconButton>
+                        </Menu.Trigger>
+                        <Portal>
+                            <Menu.Positioner>
+                                <Menu.Content
+                                    minW="230px"
+                                    p="8px"
+                                    bg="surfaceRaised"
+                                    borderColor="line"
+                                    borderWidth="1px"
+                                    borderRadius="14px"
+                                    boxShadow="panel"
+                                >
+                                    <Box px="10px" pt="7px" pb="10px">
+                                        <Text fontSize="12px" fontWeight="900">
+                                            {t("header.languageSettings")}
+                                        </Text>
+                                        <Text mt="3px" fontSize="10px" color="muted">
+                                            {t("header.languageDescription")}
+                                        </Text>
+                                    </Box>
+                                    {LOCALE_OPTIONS.map((option) => (
+                                        <Menu.Item
+                                            key={option.value}
+                                            value={option.value}
+                                            borderRadius="10px"
+                                            px="10px"
+                                            py="9px"
+                                            onClick={() => setLocale(option.value)}
+                                        >
+                                            <Flex w="full" align="center" gap="10px">
+                                                <Flex
+                                                    w="28px"
+                                                    h="22px"
+                                                    align="center"
+                                                    justify="center"
+                                                    borderRadius="7px"
+                                                    bg={
+                                                        locale === option.value
+                                                            ? "accentSubtle"
+                                                            : "surfaceMuted"
+                                                    }
+                                                    color="accent"
+                                                    fontSize="9px"
+                                                    fontWeight="900"
+                                                >
+                                                    {option.shortLabel}
+                                                </Flex>
+                                                <Text flex="1" fontSize="12px" fontWeight="700">
+                                                    {option.label}
+                                                </Text>
+                                                {locale === option.value && <Check size={15} />}
+                                            </Flex>
+                                        </Menu.Item>
+                                    ))}
+                                </Menu.Content>
+                            </Menu.Positioner>
+                        </Portal>
+                    </Menu.Root>
+                    <IconButton aria-label={t("header.notifications")} variant="ghost" color="ink">
                         <Bell size={18} />
                     </IconButton>
                     <Link
@@ -225,8 +335,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                             boxShadow: "0 0 0 2px var(--chakra-colors-accent-subtle)",
                         }}
                     >
-                        <NextLink href={ROUTES.PROFILE} aria-label="내 프로필로 이동">
-                            <UserAvatar user={user} />
+                        <NextLink href={ROUTES.PROFILE} aria-label={t("header.profile")}>
+                            <UserAvatar
+                                user={user}
+                                guest={t("account.guest")}
+                                profileImage={t("account.profileImage", {
+                                    nickname: user?.nickname ?? t("account.guest"),
+                                })}
+                            />
                         </NextLink>
                     </Link>
                 </Flex>
@@ -253,7 +369,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                                 borderColor="line"
                             >
                                 <Drawer.Title>
-                                    <Brand />
+                                    <Brand name={t("brand.name")} />
                                 </Drawer.Title>
                                 <Drawer.CloseTrigger asChild>
                                     <CloseButton size="sm" />
@@ -268,7 +384,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                                     fontWeight="800"
                                     letterSpacing=".16em"
                                 >
-                                    NAVIGATION
+                                    {t("nav.navigation").toUpperCase()}
                                 </Text>
                                 <VStack align="stretch" gap="6px">
                                     {visibleNav.map((item) => {
@@ -313,14 +429,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                                                                 fontSize="13px"
                                                                 fontWeight="800"
                                                             >
-                                                                {item.label}
+                                                                {t(item.label)}
                                                             </Text>
                                                             <Text
                                                                 mt="2px"
                                                                 fontSize="10px"
                                                                 color="muted"
                                                             >
-                                                                {item.caption}
+                                                                {t(item.caption)}
                                                             </Text>
                                                         </Box>
                                                     </Flex>
@@ -331,15 +447,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                                 </VStack>
                                 <Box mt="auto" pt="20px" borderTopWidth="1px" borderColor="line">
                                     <Flex align="center" gap="11px">
-                                        <UserAvatar user={user} />
+                                        <UserAvatar
+                                            user={user}
+                                            guest={t("account.guest")}
+                                            profileImage={t("account.profileImage", {
+                                                nickname: user?.nickname ?? t("account.guest"),
+                                            })}
+                                        />
                                         <Box flex="1">
                                             <Text fontWeight="800" fontSize="13px">
-                                                {user?.nickname ?? "게스트"}
+                                                {user?.nickname ?? t("account.guest")}
                                             </Text>
                                             <Text color="muted" fontSize="10px">
                                                 {user
-                                                    ? `${user.grade}급 · 검증 정답 ${user.verifiedSolves}개`
-                                                    : "로그인이 필요합니다"}
+                                                    ? t("account.verifiedSolves", {
+                                                          grade: user.grade,
+                                                          count: user.verifiedSolves,
+                                                      })
+                                                    : t("account.loginRequired")}
                                             </Text>
                                         </Box>
                                     </Flex>
@@ -351,7 +476,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                                             onClick={logout}
                                         >
                                             <LogOut size={15} />
-                                            로그아웃
+                                            {t("account.logout")}
                                         </Button>
                                     ) : (
                                         <Button
@@ -362,7 +487,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                                             onClick={logout}
                                         >
                                             <LogIn size={15} />
-                                            로그인
+                                            {t("account.login")}
                                         </Button>
                                     )}
                                 </Box>
