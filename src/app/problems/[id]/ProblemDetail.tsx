@@ -2,7 +2,6 @@
 
 import NextLink from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
     Alert,
     Badge,
@@ -16,7 +15,6 @@ import {
     Text,
 } from "@chakra-ui/react";
 import { authGet } from "@/lib/auth-client";
-import { startGlobalLoading } from "@/lib/global-loading";
 import { ROUTES } from "@/lib/route-paths";
 import { CodeWorkspace, type FunctionSampleTest, type FunctionSpec } from "./Workspace";
 
@@ -32,6 +30,12 @@ type Problem = {
     timeLimitMs: number;
     solved: boolean;
     acceptedSubmissionId: string | null;
+    acceptedSubmission: {
+        id: string;
+        language: "python" | "java" | "javascript" | "cpp";
+        runtimeVersion: string;
+        sourceCode: string;
+    } | null;
     attempts: number;
     submissionLimit: number;
     executionMode: "stdio" | "function";
@@ -57,22 +61,11 @@ const Sample = ({ children }: { children: React.ReactNode }) => (
 export function ProblemDetail({ id }: { id: string }) {
     const [problem, setProblem] = useState<Problem | null>(null);
     const [error, setError] = useState("");
-    const router = useRouter();
     useEffect(() => {
         let active = true;
         void authGet<{ problem: Problem }>(`/api/problems/${encodeURIComponent(id)}`)
             .then((result) => {
                 if (!active) return;
-                if (result.problem.solved && result.problem.acceptedSubmissionId) {
-                    startGlobalLoading();
-                    router.replace(
-                        ROUTES.PROBLEM_COMPLETION(
-                            result.problem.slug,
-                            result.problem.acceptedSubmissionId,
-                        ),
-                    );
-                    return;
-                }
                 setProblem(result.problem);
             })
             .catch((value) => {
@@ -84,7 +77,7 @@ export function ProblemDetail({ id }: { id: string }) {
         return () => {
             active = false;
         };
-    }, [id, router]);
+    }, [id]);
     if (error)
         return (
             <Box maxW="900px" mx="auto" px="20px" py="48px">
@@ -168,7 +161,7 @@ export function ProblemDetail({ id }: { id: string }) {
                 <Box mt="28px" p="14px" borderRadius="12px" bg="accentSubtle">
                     <Text fontSize="12px">
                         효력 제출 {problem.attempts}/{problem.submissionLimit}회
-                        {problem.solved ? " · 해결 완료" : ""}
+                        {problem.solved ? " · 해결 완료 · 재풀이는 연습 제출로 처리됩니다." : ""}
                     </Text>
                 </Box>
             </Box>
@@ -177,6 +170,7 @@ export function ProblemDetail({ id }: { id: string }) {
                 executionMode={problem.executionMode}
                 functionSpec={problem.functionSpec}
                 sampleTests={problem.sampleTests}
+                initialSubmission={problem.acceptedSubmission}
             />
         </Grid>
     );

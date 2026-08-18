@@ -39,8 +39,6 @@ type DashboardData = {
         slug: string;
         title: string;
         grade: number;
-        primaryTag: string;
-        secondaryTags: string[];
     } | null;
     progress: { current: number; required: number; label: string; next: number | null };
     stats: {
@@ -203,9 +201,6 @@ export default function Dashboard() {
                         >
                             {problem.title}
                         </Heading>
-                        <Text color="whiteAlpha.700">
-                            {[problem.primaryTag, ...problem.secondaryTags].join(" · ")}
-                        </Text>
                         <FlexLayout
                             position="absolute"
                             bottom="28px"

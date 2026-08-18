@@ -3,9 +3,14 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Box, Button, Flex, NativeSelect, Text, Textarea } from "@chakra-ui/react";
 import { Play, Send } from "lucide-react";
-import { authGet, preferredLanguage } from "@/lib/auth-client";
+import {
+    authGet,
+    preferredLanguage,
+    preferredRuntimeVersion,
+    type ProgrammingLanguage,
+} from "@/lib/auth-client";
 import { startGlobalLoading } from "@/lib/global-loading";
-import { defaultRuntime, RUNTIME_OPTIONS } from "@/lib/runtime-versions";
+import { defaultRuntime, RUNTIME_OPTIONS, runtimeVersionOrDefault } from "@/lib/runtime-versions";
 import { ROUTES } from "@/lib/route-paths";
 
 const STARTERS = {
@@ -43,6 +48,11 @@ type CodeWorkspaceProps = {
     executionMode: "stdio" | "function";
     functionSpec: FunctionSpec | null;
     sampleTests: FunctionSampleTest[];
+    initialSubmission: {
+        language: ProgrammingLanguage;
+        runtimeVersion: string;
+        sourceCode: string;
+    } | null;
 };
 
 export function CodeWorkspace({
@@ -50,6 +60,7 @@ export function CodeWorkspace({
     executionMode,
     functionSpec,
     sampleTests,
+    initialSubmission,
 }: CodeWorkspaceProps) {
     const [language, setLanguage] = useState<keyof typeof STARTERS>("python");
     const [runtimeVersion, setRuntimeVersion] = useState(defaultRuntime("python"));
@@ -59,13 +70,27 @@ export function CodeWorkspace({
     const router = useRouter();
     useEffect(() => {
         const frame = requestAnimationFrame(() => {
+            if (initialSubmission) {
+                setLanguage(initialSubmission.language);
+                setRuntimeVersion(
+                    runtimeVersionOrDefault(
+                        initialSubmission.language,
+                        initialSubmission.runtimeVersion,
+                    ),
+                );
+                setCode(initialSubmission.sourceCode);
+                setOutput(
+                    "기존 정답을 불러왔습니다. 코드를 수정해 다시 실행하거나 제출할 수 있습니다.",
+                );
+                return;
+            }
             const saved = preferredLanguage();
             setLanguage(saved);
-            setRuntimeVersion(defaultRuntime(saved));
+            setRuntimeVersion(runtimeVersionOrDefault(saved, preferredRuntimeVersion()));
             setCode(starterFor(saved, executionMode, functionSpec));
         });
         return () => cancelAnimationFrame(frame);
-    }, [executionMode, functionSpec]);
+    }, [executionMode, functionSpec, initialSubmission]);
     function switchLanguage(next: keyof typeof STARTERS) {
         setLanguage(next);
         setRuntimeVersion(defaultRuntime(next));

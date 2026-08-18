@@ -4,7 +4,6 @@ import NextLink from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
     Alert,
-    Badge,
     Box,
     Flex,
     Grid,
@@ -26,8 +25,6 @@ type ProblemItem = {
     slug: string;
     title: string;
     grade: number;
-    primaryTag: string;
-    secondaryTags: string[];
     timeLimitMs: number;
     publishedAt: string | null;
     solved: boolean;
@@ -89,11 +86,7 @@ export function ProblemCatalogScreen({
         if (!data) return [];
         const filtered = data.items.filter((problem) => {
             const keyword = query.trim().toLocaleLowerCase();
-            const matchesQuery =
-                !keyword ||
-                [problem.title, problem.primaryTag, ...problem.secondaryTags].some((value) =>
-                    value.toLocaleLowerCase().includes(keyword),
-                );
+            const matchesQuery = !keyword || problem.title.toLocaleLowerCase().includes(keyword);
             const matchesGrade = grade === "all" || problem.grade === Number(grade);
             const matchesStatus =
                 status === "all" || (status === "solved" ? problem.solved : !problem.solved);
@@ -144,7 +137,7 @@ export function ProblemCatalogScreen({
                             pl="38px"
                             bg="surface"
                             borderColor="line"
-                            placeholder="제목 또는 알고리즘 검색"
+                            placeholder="문제 제목 검색"
                             aria-label="문제 검색"
                         />
                     </Box>
@@ -263,19 +256,9 @@ function ProblemRow({ problem }: { problem: ProblemItem }) {
                 {problem.grade}급
             </Flex>
             <Box>
-                <Heading as="h2" fontSize="15px" mb="7px">
+                <Heading as="h2" fontSize="15px">
                     {problem.title}
                 </Heading>
-                <Flex gap="6px" wrap="wrap">
-                    <Badge bg="surfaceMuted" color="muted">
-                        {problem.primaryTag}
-                    </Badge>
-                    {problem.secondaryTags.map((tag) => (
-                        <Badge key={tag} bg="surfaceMuted" color="muted">
-                            {tag}
-                        </Badge>
-                    ))}
-                </Flex>
             </Box>
             <Box display={{ base: "none", md: "block" }}>
                 <Text fontSize="12px" fontWeight="800">
