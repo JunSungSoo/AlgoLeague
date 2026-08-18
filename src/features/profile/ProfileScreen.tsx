@@ -1,7 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Alert, Avatar, Box, Field, Grid, Heading, Text, VisuallyHidden } from "@chakra-ui/react";
+import {
+    Alert,
+    Avatar,
+    Box,
+    Field,
+    Grid,
+    Heading,
+    NativeSelect,
+    Text,
+    VisuallyHidden,
+} from "@chakra-ui/react";
 import {
     ArrowUpRight,
     Camera,
@@ -22,6 +32,7 @@ import {
     type ProgrammingLanguage,
 } from "@/lib/auth-client";
 import { dayjs } from "@/lib/dayjs-config";
+import { defaultRuntime, RUNTIME_OPTIONS, runtimeVersionOrDefault } from "@/lib/runtime-versions";
 import { GrowthHistory } from "./GrowthHistory";
 import { PasswordChangeDialog } from "./PasswordChangeDialog";
 import { ProfileSummary } from "./ProfileSummary";
@@ -40,6 +51,7 @@ export default function ProfilePage() {
     const [loading, setLoading] = useState(true);
     const [nickname, setNickname] = useState("");
     const [language, setLanguage] = useState<ProgrammingLanguage>("python");
+    const [runtimeVersion, setRuntimeVersion] = useState(defaultRuntime("python"));
     const [passwordOpen, setPasswordOpen] = useState(false);
     const [passwordFlow, setPasswordFlow] = useState({
         challengeId: "",
@@ -65,6 +77,12 @@ export default function ProfilePage() {
                 setGradeProgress(progress);
                 setNickname(result.user.nickname);
                 setLanguage(result.user.preferredLanguage);
+                setRuntimeVersion(
+                    runtimeVersionOrDefault(
+                        result.user.preferredLanguage,
+                        result.user.preferredRuntimeVersion,
+                    ),
+                );
                 rememberUser(result.user);
             })
             .catch((value) => {
@@ -78,6 +96,12 @@ export default function ProfilePage() {
                     });
                     setNickname(user.nickname);
                     setLanguage(user.preferredLanguage);
+                    setRuntimeVersion(
+                        runtimeVersionOrDefault(
+                            user.preferredLanguage,
+                            user.preferredRuntimeVersion,
+                        ),
+                    );
                 }
                 if (active)
                     setNotice({
@@ -99,7 +123,24 @@ export default function ProfilePage() {
         setProfile(result);
         setNickname(result.user.nickname);
         setLanguage(result.user.preferredLanguage);
+        setRuntimeVersion(
+            runtimeVersionOrDefault(
+                result.user.preferredLanguage,
+                result.user.preferredRuntimeVersion,
+            ),
+        );
         rememberUser(result.user);
+    }
+    function selectLanguage(value: ProgrammingLanguage) {
+        setLanguage(value);
+        setRuntimeVersion(
+            runtimeVersionOrDefault(
+                value,
+                value === profile?.user.preferredLanguage
+                    ? profile.user.preferredRuntimeVersion
+                    : null,
+            ),
+        );
     }
     async function changeNickname() {
         setBusy("nickname");
@@ -206,7 +247,7 @@ export default function ProfilePage() {
         try {
             const result = await authRequest<{ user: AuthUser; message: string }>(
                 "/api/profile/preferred-language",
-                { preferredLanguage: language },
+                { preferredLanguage: language, preferredRuntimeVersion: runtimeVersion },
             );
             if (profile) updateProfile({ ...profile, user: result.user });
             setNotice({ kind: "success", text: result.message });
@@ -484,9 +525,31 @@ export default function ProfilePage() {
                         name="profilePreferredLanguage"
                         value={language}
                         options={PROFILE_LANGUAGES.map(([value, label]) => ({ value, label }))}
-                        onChange={setLanguage}
+                        onChange={selectLanguage}
                         columns={{ base: "1fr", sm: "1fr 1fr" }}
                     />
+                    <Field.Root mt="18px">
+                        <Field.Label>
+                            {PROFILE_LANGUAGES.find(([value]) => value === language)?.[1]} 버전
+                        </Field.Label>
+                        <NativeSelect.Root>
+                            <NativeSelect.Field
+                                value={runtimeVersion}
+                                onChange={(event) => setRuntimeVersion(event.target.value)}
+                                bg="surface"
+                                borderColor="line"
+                                aria-label="선호 실행 버전"
+                            >
+                                {RUNTIME_OPTIONS[language].map((option) => (
+                                    <option value={option.value} key={option.value}>
+                                        {option.label}
+                                        {option.stable ? " · 기본" : ""}
+                                    </option>
+                                ))}
+                            </NativeSelect.Field>
+                            <NativeSelect.Indicator />
+                        </NativeSelect.Root>
+                    </Field.Root>
                     <AppButton
                         mt="20px"
                         w="full"
@@ -494,9 +557,12 @@ export default function ProfilePage() {
                         color="accentContrast"
                         onClick={changeLanguage}
                         loading={busy === "language"}
-                        disabled={language === user?.preferredLanguage}
+                        disabled={
+                            language === user?.preferredLanguage &&
+                            runtimeVersion === user?.preferredRuntimeVersion
+                        }
                     >
-                        기본 언어 저장
+                        기본 언어와 버전 저장
                     </AppButton>
                     <Box mt="18px" pt="17px" borderTopWidth="1px" borderColor="line">
                         <Text fontSize="11px" color="muted">

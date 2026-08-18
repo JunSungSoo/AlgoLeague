@@ -39,6 +39,15 @@ export function defaultRuntime(language: ProgrammingLanguage) {
     return RUNTIME_OPTIONS[language][0]!.value;
 }
 
+export function runtimeVersionOrDefault(
+    language: ProgrammingLanguage,
+    version: string | null | undefined,
+) {
+    return RUNTIME_OPTIONS[language].some((option) => option.value === version)
+        ? version!
+        : defaultRuntime(language);
+}
+
 export function runtimeLabel(language: ProgrammingLanguage, version: string | null | undefined) {
     return RUNTIME_OPTIONS[language].find((option) => option.value === version)?.label ?? version;
 }

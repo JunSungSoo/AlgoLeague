@@ -9,6 +9,7 @@ export type AuthUser = {
     address: string | null;
     profileImageUrl: string | null;
     preferredLanguage: ProgrammingLanguage;
+    preferredRuntimeVersion: string | null;
     role: UserRole;
     grade: number;
     verifiedSolves: number;
@@ -57,6 +58,12 @@ export async function authGet<T>(path: string): Promise<T> {
 export function rememberUser(user: AuthUser) {
     localStorage.setItem("algorithm-champions-user", JSON.stringify(user));
     localStorage.setItem("algorithm-champions-preferred-language", user.preferredLanguage);
+    if (user.preferredRuntimeVersion)
+        localStorage.setItem(
+            "algorithm-champions-preferred-runtime-version",
+            user.preferredRuntimeVersion,
+        );
+    else localStorage.removeItem("algorithm-champions-preferred-runtime-version");
     window.dispatchEvent(new Event("algorithm-champions-auth"));
 }
 export function currentUser(): AuthUser | null {
@@ -70,9 +77,14 @@ export function currentUser(): AuthUser | null {
 export function forgetUser() {
     localStorage.removeItem("algorithm-champions-user");
     localStorage.removeItem("algorithm-champions-preferred-language");
+    localStorage.removeItem("algorithm-champions-preferred-runtime-version");
     window.dispatchEvent(new Event("algorithm-champions-auth"));
 }
 export function preferredLanguage(): ProgrammingLanguage {
     const value = localStorage.getItem("algorithm-champions-preferred-language");
     return value === "java" || value === "javascript" || value === "cpp" ? value : "python";
+}
+
+export function preferredRuntimeVersion() {
+    return localStorage.getItem("algorithm-champions-preferred-runtime-version");
 }
