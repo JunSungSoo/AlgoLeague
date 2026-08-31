@@ -17,10 +17,18 @@ import { authGet } from "@/lib/auth-client";
 import { dayjs } from "@/lib/dayjs-config";
 import { GradeBadge, PageHeader, Panel, SectionHeader } from "@/components/Primitives";
 import { FlexLayout } from "@/components/ui";
+import { generationFailureMessage } from "./generation-failure-message";
 import { ProblemReviewSection } from "./ProblemReviewSection";
 
 type Overview = {
     generatedAt: string;
+    delivery: "chatgpt" | "worker";
+    today: {
+        day: string;
+        dailyTarget: number;
+        total: number;
+        counts: Record<string, number>;
+    };
     metrics: {
         published: number;
         inProgress: number;
@@ -45,6 +53,10 @@ type Overview = {
 };
 const STATE_LABELS: Record<string, string> = {
     STOPPED: "중지됨",
+    REQUESTED: "Plus 작업 대기",
+    GENERATING: "Plus 생성·수정 중",
+    REVIEW_REQUIRED: "운영자 검수 필요",
+    PUBLISHED: "게시 완료",
 };
 function statePalette(state: string) {
     return state === "STOPPED"
@@ -61,6 +73,24 @@ export default function AdminPage() {
     const [data, setData] = useState<Overview | null>(null);
     const [error, setError] = useState("");
     const [refreshKey, setRefreshKey] = useState(0);
+    const todaySummary = data?.today ?? {
+        day: "",
+        dailyTarget: 0,
+        total: 0,
+        counts: {} as Record<string, number>,
+    };
+    const metricsSummary = data?.metrics ?? {
+        published: 0,
+        inProgress: 0,
+        stopped: 0,
+        reviewRequired: 0,
+        failureRate24h: 0,
+        workerOnline: false,
+    };
+    const todayCompleted =
+        (todaySummary.counts.PUBLISHED ?? 0) + (todaySummary.counts.REVIEW_REQUIRED ?? 0);
+    const channelLabel = data?.delivery === "chatgpt" ? "ChatGPT Plus 대기열" : "생성 워커";
+    const channelOnline = data?.delivery === "chatgpt" || metricsSummary.workerOnline;
     useEffect(() => {
         let active = true;
         const loadOverview = () =>
@@ -101,13 +131,13 @@ export default function AdminPage() {
                     data && (
                         <FlexLayout align="center" gap="7px" wrap="wrap" justify="end">
                             <Badge
-                                bg={data.metrics.workerOnline ? "green.50" : "gray.100"}
-                                color={data.metrics.workerOnline ? "green.700" : "gray.700"}
+                                bg={channelOnline ? "green.50" : "gray.100"}
+                                color={channelOnline ? "green.700" : "gray.700"}
                                 borderRadius="full"
                                 px="9px"
                                 py="5px"
                             >
-                                생성 워커 {data.metrics.workerOnline ? "실행 중" : "중지됨"}
+                                {channelLabel} {channelOnline ? "설정됨" : "중지됨"}
                             </Badge>
                             <GradeBadge subtle>
                                 DB 기준 · {dayjs(data.generatedAt).tz().format("HH:mm")}
@@ -130,13 +160,14 @@ export default function AdminPage() {
                 </FlexLayout>
             ) : (
                 <>
-                    <SimpleGrid columns={{ base: 2, lg: 5 }} gap="18px">
+                    <SimpleGrid columns={{ base: 2, lg: 6 }} gap="18px">
                         {[
-                            ["게시 문제", data.metrics.published],
-                            ["진행 중", data.metrics.inProgress],
-                            ["중지됨", data.metrics.stopped],
-                            ["검수 필요", data.metrics.reviewRequired],
-                            ["24시간 실패율", `${data.metrics.failureRate24h}%`],
+                            ["오늘 생성", `${todayCompleted}/${todaySummary.dailyTarget}`],
+                            ["게시 문제", metricsSummary.published],
+                            ["진행 중", metricsSummary.inProgress],
+                            ["중지됨", metricsSummary.stopped],
+                            ["검수 필요", metricsSummary.reviewRequired],
+                            ["24시간 실패율", `${metricsSummary.failureRate24h}%`],
                         ].map(([label, value]) => (
                             <Panel key={label}>
                                 <Text fontSize="12px" color="muted">
@@ -188,37 +219,48 @@ export default function AdminPage() {
                                     </Table.Row>
                                 </Table.Header>
                                 <Table.Body>
-                                    {data.jobs.map((job) => (
-                                        <Table.Row key={job.id}>
-                                            <Table.Cell fontWeight="800" title={job.id}>
-                                                {job.id.slice(0, 8)}
-                                            </Table.Cell>
-                                            <Table.Cell maxW="240px">
-                                                {job.title}
-                                                {job.failureReason && (
-                                                    <Text color="red.600" fontSize="10px" mt="3px">
-                                                        {job.failureReason}
-                                                    </Text>
-                                                )}
-                                            </Table.Cell>
-                                            <Table.Cell>{job.grade}급</Table.Cell>
-                                            <Table.Cell>{job.blueprint}</Table.Cell>
-                                            <Table.Cell>{job.model}</Table.Cell>
-                                            <Table.Cell>{job.score ?? "-"}</Table.Cell>
-                                            <Table.Cell>{job.attempts}</Table.Cell>
-                                            <Table.Cell>
-                                                <Badge
-                                                    {...statePalette(job.state)}
-                                                    title={`DB 상태: ${job.databaseState}`}
-                                                >
-                                                    {STATE_LABELS[job.state] ?? job.state}
-                                                </Badge>
-                                            </Table.Cell>
-                                            <Table.Cell>
-                                                {dayjs(job.updatedAt).tz().format("M. D. HH:mm")}
-                                            </Table.Cell>
-                                        </Table.Row>
-                                    ))}
+                                    {data.jobs.map((job) => {
+                                        const failureMessage = generationFailureMessage(
+                                            job.failureReason,
+                                        );
+                                        return (
+                                            <Table.Row key={job.id}>
+                                                <Table.Cell fontWeight="800" title={job.id}>
+                                                    {job.id.slice(0, 8)}
+                                                </Table.Cell>
+                                                <Table.Cell maxW="240px">
+                                                    {job.title}
+                                                    {failureMessage && (
+                                                        <Text
+                                                            color="red.600"
+                                                            fontSize="10px"
+                                                            mt="3px"
+                                                        >
+                                                            {failureMessage}
+                                                        </Text>
+                                                    )}
+                                                </Table.Cell>
+                                                <Table.Cell>{job.grade}급</Table.Cell>
+                                                <Table.Cell>{job.blueprint}</Table.Cell>
+                                                <Table.Cell>{job.model}</Table.Cell>
+                                                <Table.Cell>{job.score ?? "-"}</Table.Cell>
+                                                <Table.Cell>{job.attempts}</Table.Cell>
+                                                <Table.Cell>
+                                                    <Badge
+                                                        {...statePalette(job.state)}
+                                                        title={`DB 상태: ${job.databaseState}`}
+                                                    >
+                                                        {STATE_LABELS[job.state] ?? job.state}
+                                                    </Badge>
+                                                </Table.Cell>
+                                                <Table.Cell>
+                                                    {dayjs(job.updatedAt)
+                                                        .tz()
+                                                        .format("M. D. HH:mm")}
+                                                </Table.Cell>
+                                            </Table.Row>
+                                        );
+                                    })}
                                 </Table.Body>
                             </Table.Root>
                         </Table.ScrollArea>
@@ -234,11 +276,11 @@ export default function AdminPage() {
             <Grid templateColumns={{ base: "1fr", md: "repeat(3,1fr)" }} gap="18px">
                 {[
                     [
-                        "9–2급 자동 승인",
+                        "9–4급 자동 승인",
                         "전 검증 게이트와 유사도 기준을 통과한 승인 청사진만 게시합니다.",
                     ],
                     [
-                        "1급 사람 검수",
+                        "3–1급 사람 검수",
                         "독립 풀이 2개, 성능 경계, 저작권 유사도를 운영자가 확인합니다.",
                     ],
                     [

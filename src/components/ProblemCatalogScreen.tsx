@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
     Alert,
     Box,
+    Button,
     Flex,
     Grid,
     Heading,
@@ -20,6 +21,7 @@ import { authGet } from "@/lib/auth-client";
 import { sortProblemCatalog, type GradeSortDirection } from "@/lib/problem-catalog";
 import { ROUTES } from "@/lib/route-paths";
 import { GradeBadge, PageHeader, Panel } from "@/components/Primitives";
+import { useLocale } from "@/components/LocaleProvider";
 
 type ProblemItem = {
     slug: string;
@@ -29,6 +31,7 @@ type ProblemItem = {
     publishedAt: string | null;
     solved: boolean;
     accessible: boolean;
+    solvedSubmissionId?: string | null;
     acceptanceRate: number | null;
     lastSubmittedAt?: string;
     submissionCount?: number;
@@ -39,18 +42,13 @@ type ProblemCatalog = {
     canAccessAllGrades?: boolean;
     items: ProblemItem[];
 };
+type MyProblemTab = "all" | "in-progress" | "completed";
 
 export function ProblemCatalogScreen({
     endpoint,
-    eyebrow,
-    title,
-    description,
     defaultGrade = "all",
 }: {
     endpoint: string;
-    eyebrow: string;
-    title: string;
-    description: string;
     defaultGrade?: "mine" | "all";
 }) {
     const [data, setData] = useState<ProblemCatalog | null>(null);
@@ -59,6 +57,9 @@ export function ProblemCatalogScreen({
     const [grade, setGrade] = useState("");
     const [status, setStatus] = useState("all");
     const [gradeSort, setGradeSort] = useState<GradeSortDirection>("desc");
+    const [myProblemTab, setMyProblemTab] = useState<MyProblemTab>("all");
+    const { t } = useLocale();
+    const isMyProblems = endpoint === "/api/my-problems";
     useEffect(() => {
         let active = true;
         void authGet<ProblemCatalog>(endpoint)
@@ -90,10 +91,14 @@ export function ProblemCatalogScreen({
             const matchesGrade = grade === "all" || problem.grade === Number(grade);
             const matchesStatus =
                 status === "all" || (status === "solved" ? problem.solved : !problem.solved);
-            return matchesQuery && matchesGrade && matchesStatus;
+            const matchesTab =
+                endpoint !== "/api/my-problems" ||
+                myProblemTab === "all" ||
+                (myProblemTab === "completed" ? problem.solved : !problem.solved);
+            return matchesQuery && matchesGrade && matchesStatus && matchesTab;
         });
         return sortProblemCatalog(filtered, data.userGrade, gradeSort);
-    }, [data, grade, gradeSort, query, status]);
+    }, [data, endpoint, grade, gradeSort, myProblemTab, query, status]);
     return (
         <Box
             maxW="1390px"
@@ -103,22 +108,46 @@ export function ProblemCatalogScreen({
             pb="60px"
         >
             <PageHeader
-                eyebrow={eyebrow}
-                title={title}
+                eyebrow={t(isMyProblems ? "catalog.myEyebrow" : "catalog.eyebrow")}
+                title={t(isMyProblems ? "catalog.myTitle" : "catalog.title")}
                 action={
                     data && (
                         <GradeBadge subtle>
-                            {endpoint === "/api/my-problems"
-                                ? `제출한 문제 ${data.items.length}개`
+                            {isMyProblems
+                                ? t("catalog.submittedCount", { count: data.items.length })
                                 : data.canAccessAllGrades
-                                  ? "관리자 · 전체 등급 접근 가능"
-                                  : `접근 가능: 9급–${data.accessibleRange.to}급`}
+                                  ? t("catalog.adminAccess")
+                                  : t("catalog.gradeAccess", { grade: data.accessibleRange.to })}
                         </GradeBadge>
                     )
                 }
             />
-            <Text color="muted">{description}</Text>
+            <Text color="muted">
+                {t(isMyProblems ? "catalog.myDescription" : "catalog.description")}
+            </Text>
             <Box w={{ base: "full", md: "802px" }} maxW="full">
+                {isMyProblems && (
+                    <Flex gap="6px" mt="18px">
+                        {(
+                            [
+                                ["all", t("catalog.tabAll")],
+                                ["in-progress", t("catalog.tabInProgress")],
+                                ["completed", t("catalog.tabCompleted")],
+                            ] as const
+                        ).map(([value, label]) => (
+                            <Button
+                                key={value}
+                                variant="ghost"
+                                borderRadius="9px"
+                                bg={myProblemTab === value ? "accentSubtle" : "transparent"}
+                                color={myProblemTab === value ? "accent" : "muted"}
+                                onClick={() => setMyProblemTab(value)}
+                            >
+                                {label}
+                            </Button>
+                        ))}
+                    </Flex>
+                )}
                 <Flex gap="9px" my="18px" wrap="wrap">
                     <Box position="relative" flex={{ base: "1 1 100%", md: "0 0 320px" }}>
                         <Search
@@ -137,8 +166,8 @@ export function ProblemCatalogScreen({
                             pl="38px"
                             bg="surface"
                             borderColor="line"
-                            placeholder="문제 제목 검색"
-                            aria-label="문제 검색"
+                            placeholder={t("catalog.searchPlaceholder")}
+                            aria-label={t("common.search")}
                         />
                     </Box>
                     <NativeSelect.Root w={{ base: "full", sm: "150px" }} flex={{ md: "0 0 150px" }}>
@@ -147,9 +176,9 @@ export function ProblemCatalogScreen({
                             onChange={(event) => setGrade(event.target.value)}
                             bg="surface"
                             borderColor="line"
-                            aria-label="등급"
+                            aria-label={t("common.grade")}
                         >
-                            <option value="all">모든 등급</option>
+                            <option value="all">{t("catalog.allGrades")}</option>
                             {[9, 8, 7, 6, 5, 4, 3, 2, 1].map((value) => (
                                 <option value={value} key={value}>
                                     {value}급{value === data?.userGrade ? " · 내 등급" : ""}
@@ -164,11 +193,11 @@ export function ProblemCatalogScreen({
                             onChange={(event) => setStatus(event.target.value)}
                             bg="surface"
                             borderColor="line"
-                            aria-label="풀이 상태"
+                            aria-label={t("common.status")}
                         >
-                            <option value="all">모든 상태</option>
-                            <option value="unsolved">미해결</option>
-                            <option value="solved">해결</option>
+                            <option value="all">{t("catalog.allStatuses")}</option>
+                            <option value="unsolved">{t("catalog.unsolved")}</option>
+                            <option value="solved">{t("catalog.solved")}</option>
                         </NativeSelect.Field>
                         <NativeSelect.Indicator />
                     </NativeSelect.Root>
@@ -182,8 +211,8 @@ export function ProblemCatalogScreen({
                             borderColor="line"
                             aria-label="급수 정렬"
                         >
-                            <option value="desc">내림차순</option>
-                            <option value="asc">오름차순</option>
+                            <option value="desc">{t("common.sortDescending")}</option>
+                            <option value="asc">{t("common.sortAscending")}</option>
                         </NativeSelect.Field>
                         <NativeSelect.Indicator />
                     </NativeSelect.Root>
@@ -192,19 +221,23 @@ export function ProblemCatalogScreen({
                     <Alert.Root status="error">
                         <Alert.Indicator />
                         <Alert.Content>
-                            <Alert.Title>문제 데이터를 불러오지 못했습니다.</Alert.Title>
+                            <Alert.Title>{t("common.error")}</Alert.Title>
                             <Alert.Description>{error}</Alert.Description>
                         </Alert.Content>
                     </Alert.Root>
                 ) : !data ? (
                     <Flex minH="260px" align="center" justify="center" gap="10px" color="muted">
                         <Spinner size="sm" />
-                        <Text>문제 기록을 불러오는 중입니다.</Text>
+                        <Text>{t("common.loading")}</Text>
                     </Flex>
                 ) : items.length ? (
                     <VStack align="stretch" gap="9px" w="full">
                         {items.map((problem) => (
-                            <ProblemRow key={problem.slug} problem={problem} />
+                            <ProblemRow
+                                key={problem.slug}
+                                problem={problem}
+                                isMyProblems={endpoint === "/api/my-problems"}
+                            />
                         ))}
                     </VStack>
                 ) : (
@@ -212,11 +245,11 @@ export function ProblemCatalogScreen({
                         <Heading fontSize="17px">
                             {endpoint === "/api/my-problems"
                                 ? "아직 제출한 문제가 없습니다."
-                                : "조건에 맞는 문제가 없습니다."}
+                                : t("catalog.noProblems")}
                         </Heading>
                         <Text mt="7px" color="muted" fontSize="12px">
                             {endpoint === "/api/my-problems"
-                                ? "문제 탐색에서 풀이를 제출하면 이곳에 기록됩니다."
+                                ? t("catalog.myDescription")
                                 : "검색어나 필터를 바꿔 보세요."}
                         </Text>
                     </Panel>
@@ -226,7 +259,7 @@ export function ProblemCatalogScreen({
     );
 }
 
-function ProblemRow({ problem }: { problem: ProblemItem }) {
+function ProblemRow({ problem, isMyProblems }: { problem: ProblemItem; isMyProblems: boolean }) {
     const card = (
         <Grid
             w="full"
@@ -299,7 +332,15 @@ function ProblemRow({ problem }: { problem: ProblemItem }) {
             }}
             transition="all .15s"
         >
-            <NextLink href={ROUTES.PROBLEM(problem.slug)}>{card}</NextLink>
+            <NextLink
+                href={
+                    isMyProblems && problem.solved && problem.solvedSubmissionId
+                        ? ROUTES.PROBLEM_COMPLETION(problem.slug, problem.solvedSubmissionId)
+                        : ROUTES.PROBLEM(problem.slug)
+                }
+            >
+                {card}
+            </NextLink>
         </Link>
     ) : (
         <Box w="full" title="현재 등급에서는 아직 접근할 수 없습니다.">

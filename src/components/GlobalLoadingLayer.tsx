@@ -1,13 +1,23 @@
 "use client";
 
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Box, Flex, Text } from "@chakra-ui/react";
+import { notifySessionExpired } from "@/lib/auth-client";
 import { GLOBAL_LOADING_EVENTS } from "@/lib/global-loading";
+import { ROUTES } from "@/lib/route-paths";
 
 const SHOW_DELAY_MS = 160;
 const MINIMUM_VISIBLE_MS = 420;
+
+function isPublicPath(pathname: string) {
+    return (
+        pathname === ROUTES.LOGIN ||
+        pathname === ROUTES.SIGNUP ||
+        pathname.startsWith(ROUTES.ACCOUNT_PREFIX)
+    );
+}
 
 export function GlobalLoadingLayer() {
     const activeCount = useRef(0);
@@ -15,16 +25,40 @@ export function GlobalLoadingLayer() {
     const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const shownAt = useRef(0);
     const visibleRef = useRef(false);
+    const sessionRedirecting = useRef(false);
     const [visible, setVisible] = useState(false);
     const [dotCount, setDotCount] = useState(1);
     const pathname = usePathname();
+    const router = useRouter();
 
     useEffect(() => {
         const originalFetch = window.fetch.bind(window);
         const trackedFetch: typeof window.fetch = async (...args) => {
             window.dispatchEvent(new Event(GLOBAL_LOADING_EVENTS.start));
             try {
-                return await originalFetch(...args);
+                const response = await originalFetch(...args);
+                const requestUrl =
+                    args[0] instanceof Request
+                        ? args[0].url
+                        : typeof args[0] === "string"
+                          ? args[0]
+                          : String(args[0]);
+                const pathname = new URL(requestUrl, window.location.href).pathname;
+                notifySessionExpired(response, pathname);
+                if (
+                    response.status === 401 &&
+                    pathname !== "/api/auth/login" &&
+                    !isPublicPath(window.location.pathname) &&
+                    !sessionRedirecting.current
+                ) {
+                    sessionRedirecting.current = true;
+                    router.replace(
+                        ROUTES.LOGIN_WITH_NEXT(
+                            `${window.location.pathname}${window.location.search}`,
+                        ),
+                    );
+                }
+                return response;
             } finally {
                 window.dispatchEvent(new Event(GLOBAL_LOADING_EVENTS.end));
             }
@@ -63,7 +97,7 @@ export function GlobalLoadingLayer() {
             document.removeEventListener("click", trackNavigation);
             window.removeEventListener("popstate", trackHistoryNavigation);
         };
-    }, []);
+    }, [router]);
 
     useEffect(() => {
         const show = () => {
@@ -118,7 +152,21 @@ export function GlobalLoadingLayer() {
     }, [visible]);
 
     useEffect(() => {
-        window.dispatchEvent(new Event(GLOBAL_LOADING_EVENTS.end));
+        sessionRedirecting.current = false;
+        activeCount.current = 0;
+        if (showTimer.current) {
+            clearTimeout(showTimer.current);
+            showTimer.current = null;
+        }
+        if (hideTimer.current) {
+            clearTimeout(hideTimer.current);
+            hideTimer.current = null;
+        }
+        visibleRef.current = false;
+        hideTimer.current = setTimeout(() => {
+            hideTimer.current = null;
+            setVisible(false);
+        }, 0);
     }, [pathname]);
 
     if (!visible) return null;

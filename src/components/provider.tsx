@@ -5,6 +5,7 @@ import { THEME_SYSTEM } from "@/theme";
 import { RippleLayer } from "@/components/RippleLayer";
 import { GlobalLoadingLayer } from "@/components/GlobalLoadingLayer";
 import { LocaleProvider } from "@/components/LocaleProvider";
+import { AppToast } from "@/components/AppToast";
 
 export function Provider({ children }: { children: React.ReactNode }) {
     return (
@@ -12,6 +13,7 @@ export function Provider({ children }: { children: React.ReactNode }) {
             <LocaleProvider>
                 <GlobalLoadingLayer />
                 <RippleLayer />
+                <AppToast />
                 {children}
             </LocaleProvider>
         </ChakraProvider>

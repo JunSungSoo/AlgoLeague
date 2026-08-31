@@ -1,5 +1,8 @@
 export type ProgrammingLanguage = "python" | "java" | "javascript" | "cpp";
 import type { UserRole } from "@/lib/permissions";
+
+export const SESSION_EXPIRED_EVENT = "algorithm-champions-session-expired";
+
 export type AuthUser = {
     id: string;
     username: string;
@@ -25,9 +28,12 @@ export class AuthApiError extends Error {
     }
 }
 
-function sessionExpired(response: Response, path: string) {
-    if (response.status === 401 && path !== "/api/auth/login" && typeof window !== "undefined")
-        window.dispatchEvent(new Event("algorithm-champions-session-expired"));
+export function notifySessionExpired(response: Response, path: string) {
+    if (response.status !== 401 || path === "/api/auth/login" || typeof window === "undefined")
+        return;
+
+    forgetUser();
+    window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
 }
 
 export async function authRequest<T>(path: string, body: unknown): Promise<T> {
@@ -39,7 +45,7 @@ export async function authRequest<T>(path: string, body: unknown): Promise<T> {
     });
     const result = await response.json().catch(() => ({ error: "응답을 처리할 수 없습니다." }));
     if (!response.ok) {
-        sessionExpired(response, path);
+        notifySessionExpired(response, path);
         throw new AuthApiError(result.error ?? "요청을 처리하지 못했습니다.", response.status);
     }
     return result as T;
@@ -49,7 +55,7 @@ export async function authGet<T>(path: string): Promise<T> {
     const response = await fetch(path, { credentials: "include", cache: "no-store" });
     const result = await response.json().catch(() => ({ error: "응답을 처리할 수 없습니다." }));
     if (!response.ok) {
-        sessionExpired(response, path);
+        notifySessionExpired(response, path);
         throw new AuthApiError(result.error ?? "요청을 처리하지 못했습니다.", response.status);
     }
     return result as T;

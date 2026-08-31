@@ -14,7 +14,9 @@ import {
     Link,
     Spinner,
     Text,
+    Textarea,
 } from "@chakra-ui/react";
+import { Dialog } from "@chakra-ui/react";
 import {
     CheckCircle2,
     ChevronLeft,
@@ -23,7 +25,7 @@ import {
     MessageCircle,
     ThumbsUp,
 } from "lucide-react";
-import { authGet, type ProgrammingLanguage } from "@/lib/auth-client";
+import { authGet, authRequest, type ProgrammingLanguage } from "@/lib/auth-client";
 import { dayjs } from "@/lib/dayjs-config";
 import { GradeBadge, Panel } from "@/components/Primitives";
 import { runtimeLabel } from "@/lib/runtime-versions";
@@ -34,6 +36,7 @@ type Answer = {
     id: string;
     nickname: string;
     profileImageUrl: string | null;
+    grade: number;
     language: string;
     runtimeVersion: string | null;
     sourceCode: string;
@@ -57,6 +60,30 @@ type Completion = {
         totalPages: number;
         items: Answer[];
     };
+};
+type SubmissionComment = {
+    id: string;
+    nickname: string;
+    profileImageUrl: string | null;
+    grade: number;
+    body: string;
+    createdAt: string;
+};
+type SubmissionDetail = {
+    submission: {
+        id: string;
+        nickname: string;
+        profileImageUrl: string | null;
+        grade: number;
+        language: string;
+        runtimeVersion: string;
+        sourceCode: string;
+        recommendationCount: number;
+        commentCount: number;
+        recommended: boolean;
+        createdAt: string;
+    };
+    comments: SubmissionComment[];
 };
 
 const SORT_FILTERS: Array<{ value: Sort; label: string }> = [
@@ -83,6 +110,12 @@ export function CompletionScreen({
     const [data, setData] = useState<Completion | null>(null);
     const [error, setError] = useState(submissionId ? "" : "제출 ID가 없습니다.");
     const [loading, setLoading] = useState(Boolean(submissionId));
+    const [selectedAnswerId, setSelectedAnswerId] = useState<string | null>(null);
+    const [selectedDetail, setSelectedDetail] = useState<SubmissionDetail | null>(null);
+    const [detailLoading, setDetailLoading] = useState(false);
+    const [detailError, setDetailError] = useState("");
+    const [commentBody, setCommentBody] = useState("");
+    const [commentBusy, setCommentBusy] = useState(false);
 
     useEffect(() => {
         if (!submissionId) return;
@@ -118,6 +151,103 @@ export function CompletionScreen({
     function changePage(next: number) {
         setLoading(true);
         setPage(next);
+    }
+    function updateAnswer(answerId: string, update: (answer: Answer) => Answer) {
+        setData((current) => {
+            if (!current) return current;
+            return {
+                ...current,
+                answers: {
+                    ...current.answers,
+                    items: current.answers.items.map((answer) =>
+                        answer.id === answerId ? update(answer) : answer,
+                    ),
+                },
+            };
+        });
+    }
+    async function refreshAnswerList() {
+        if (!submissionId) return;
+        try {
+            const result = await authGet<Completion>(
+                `/api/submissions/${encodeURIComponent(submissionId)}/completion?sort=${sort}&page=${page}`,
+            );
+            setData((current) => (current ? { ...current, answers: result.answers } : result));
+        } catch {
+            // The optimistic card update remains visible when a background refresh fails.
+        }
+    }
+    async function openAnswer(answer: Answer) {
+        setSelectedAnswerId(answer.id);
+        setSelectedDetail(null);
+        setDetailError("");
+        setCommentBody("");
+        setDetailLoading(true);
+        try {
+            const result = await authGet<SubmissionDetail>(
+                `/api/submissions/${encodeURIComponent(answer.id)}/detail`,
+            );
+            setSelectedDetail(result);
+        } catch (value) {
+            setDetailError(
+                value instanceof Error ? value.message : "답안 상세를 불러오지 못했습니다.",
+            );
+        } finally {
+            setDetailLoading(false);
+        }
+    }
+    async function toggleRecommendation() {
+        if (!selectedDetail) return;
+        const recommended = !selectedDetail.submission.recommended;
+        try {
+            await authRequest(`/api/submissions/${selectedDetail.submission.id}/recommendation`, {
+                recommended,
+            });
+            setSelectedDetail({
+                ...selectedDetail,
+                submission: {
+                    ...selectedDetail.submission,
+                    recommended,
+                    recommendationCount:
+                        selectedDetail.submission.recommendationCount + (recommended ? 1 : -1),
+                },
+            });
+            updateAnswer(selectedDetail.submission.id, (answer) => ({
+                ...answer,
+                recommendationCount: answer.recommendationCount + (recommended ? 1 : -1),
+            }));
+            void refreshAnswerList();
+        } catch (value) {
+            setDetailError(value instanceof Error ? value.message : "추천을 처리하지 못했습니다.");
+        }
+    }
+    async function addComment() {
+        if (!selectedDetail || !commentBody.trim() || commentBusy) return;
+        setCommentBusy(true);
+        try {
+            const result = await authRequest<{ comment: SubmissionComment }>(
+                `/api/submissions/${selectedDetail.submission.id}/comments`,
+                { body: commentBody },
+            );
+            setSelectedDetail({
+                ...selectedDetail,
+                comments: [...selectedDetail.comments, result.comment],
+                submission: {
+                    ...selectedDetail.submission,
+                    commentCount: selectedDetail.submission.commentCount + 1,
+                },
+            });
+            updateAnswer(selectedDetail.submission.id, (answer) => ({
+                ...answer,
+                commentCount: answer.commentCount + 1,
+            }));
+            void refreshAnswerList();
+            setCommentBody("");
+        } catch (value) {
+            setDetailError(value instanceof Error ? value.message : "댓글을 등록하지 못했습니다.");
+        } finally {
+            setCommentBusy(false);
+        }
     }
 
     if (loading && !data)
@@ -212,11 +342,6 @@ export function CompletionScreen({
                                 data.submission.runtimeVersion,
                             )}
                         </Badge>
-                        {data.submission.runtimeMs !== null && (
-                            <Badge borderRadius="full" px="10px">
-                                {data.submission.runtimeMs}ms
-                            </Badge>
-                        )}
                         {data.submission.memoryKb !== null && (
                             <Badge borderRadius="full" px="10px">
                                 {Math.round(data.submission.memoryKb / 1024)}MB
@@ -230,9 +355,6 @@ export function CompletionScreen({
                     </Text>
                     <Text mt="4px" color="muted" fontSize="12px">
                         모든 공개·비공개 테스트를 통과했습니다.
-                        {data.submission.runtimeMs !== null
-                            ? ` 실행 시간 ${data.submission.runtimeMs}ms.`
-                            : ""}
                         {data.submission.judgedAt
                             ? ` 검수 완료 ${formatDate(data.submission.judgedAt)}.`
                             : ""}
@@ -333,7 +455,7 @@ export function CompletionScreen({
                     gap="14px"
                 >
                     {data.answers.items.map((answer) => (
-                        <AnswerCard key={answer.id} answer={answer} />
+                        <AnswerCard key={answer.id} answer={answer} onSelect={openAnswer} />
                     ))}
                 </Grid>
             ) : (
@@ -344,6 +466,64 @@ export function CompletionScreen({
                     </Text>
                 </Panel>
             )}
+
+            <Dialog.Root
+                open={Boolean(selectedAnswerId)}
+                onOpenChange={(details) => {
+                    if (!details.open) {
+                        setSelectedAnswerId(null);
+                        setSelectedDetail(null);
+                    }
+                }}
+                placement="center"
+            >
+                <Dialog.Backdrop bg="blackAlpha.800" backdropFilter="blur(4px)" />
+                <Dialog.Positioner p={{ base: "14px", md: "24px" }}>
+                    <Dialog.Content
+                        maxW="760px"
+                        maxH="calc(100vh - 48px)"
+                        overflowY="auto"
+                        bg="surface"
+                        borderWidth="1px"
+                        borderColor="line"
+                        borderRadius="18px"
+                    >
+                        <Dialog.Header>
+                            <Dialog.Title>답안 상세</Dialog.Title>
+                            <Dialog.Description mt="5px" color="muted" fontSize="12px">
+                                같은 문제를 해결한 학습자의 풀이입니다.
+                            </Dialog.Description>
+                        </Dialog.Header>
+                        <Dialog.Body>
+                            {detailLoading ? (
+                                <Flex justify="center" py="60px" color="muted">
+                                    <Spinner size="sm" />
+                                </Flex>
+                            ) : detailError && !selectedDetail ? (
+                                <Alert.Root status="error">
+                                    <Alert.Indicator />
+                                    <Alert.Title>{detailError}</Alert.Title>
+                                </Alert.Root>
+                            ) : selectedDetail ? (
+                                <SubmissionDetailView
+                                    detail={selectedDetail}
+                                    commentBody={commentBody}
+                                    commentBusy={commentBusy}
+                                    error={detailError}
+                                    onRecommend={() => void toggleRecommendation()}
+                                    onCommentChange={setCommentBody}
+                                    onComment={() => void addComment()}
+                                />
+                            ) : null}
+                        </Dialog.Body>
+                        <Dialog.Footer>
+                            <Button variant="ghost" onClick={() => setSelectedAnswerId(null)}>
+                                닫기
+                            </Button>
+                        </Dialog.Footer>
+                    </Dialog.Content>
+                </Dialog.Positioner>
+            </Dialog.Root>
 
             {data.answers.totalPages > 1 && (
                 <Flex mt="22px" justify="center" align="center" gap="9px">
@@ -374,15 +554,148 @@ export function CompletionScreen({
     );
 }
 
-function AnswerCard({ answer }: { answer: Answer }) {
+function SubmissionDetailView({
+    detail,
+    commentBody,
+    commentBusy,
+    error,
+    onRecommend,
+    onCommentChange,
+    onComment,
+}: {
+    detail: SubmissionDetail;
+    commentBody: string;
+    commentBusy: boolean;
+    error: string;
+    onRecommend: () => void;
+    onCommentChange: (value: string) => void;
+    onComment: () => void;
+}) {
     return (
-        <Panel p="0" overflow="hidden" minW="0">
+        <Flex direction="column" gap="16px">
+            <Flex align="center" justify="space-between" gap="12px">
+                <Flex align="center" gap="9px">
+                    <UserAvatar answer={detail.submission} />
+                    <Box>
+                        <Flex align="center" gap="6px">
+                            <Text fontWeight="900">{detail.submission.nickname}</Text>
+                            <GradeMedalBadge grade={detail.submission.grade} />
+                        </Flex>
+                        <Text fontSize="11px" color="muted">
+                            {LANGUAGE_LABELS[detail.submission.language] ??
+                                detail.submission.language}
+                            {" · "}
+                            {runtimeLabel(
+                                detail.submission.language as ProgrammingLanguage,
+                                detail.submission.runtimeVersion,
+                            )}
+                        </Text>
+                    </Box>
+                </Flex>
+                <Button
+                    size="sm"
+                    variant={detail.submission.recommended ? "solid" : "outline"}
+                    onClick={onRecommend}
+                >
+                    <ThumbsUp size={14} /> 추천 {detail.submission.recommendationCount}
+                </Button>
+            </Flex>
+            <Box
+                as="pre"
+                m="0"
+                maxH="390px"
+                overflow="auto"
+                p="18px"
+                bg="brand.950"
+                color="#fff3df"
+                borderRadius="12px"
+                fontFamily="mono"
+                fontSize="12px"
+                lineHeight="1.65"
+                whiteSpace="pre-wrap"
+            >
+                {detail.submission.sourceCode}
+            </Box>
+            <Box>
+                <Text fontWeight="900" fontSize="14px" mb="9px">
+                    댓글 {detail.submission.commentCount}개
+                </Text>
+                <Flex direction="column" gap="8px" maxH="180px" overflowY="auto">
+                    {detail.comments.map((comment) => (
+                        <Box key={comment.id} p="10px 12px" bg="surfaceMuted" borderRadius="10px">
+                            <Flex justify="space-between" gap="8px">
+                                <Flex align="center" gap="6px" minW="0">
+                                    <UserAvatar answer={comment} size="xs" />
+                                    <Text fontWeight="800" fontSize="12px" truncate>
+                                        {comment.nickname}
+                                    </Text>
+                                    <GradeMedalBadge grade={comment.grade} />
+                                </Flex>
+                                <Text fontSize="10px" color="muted">
+                                    {formatDate(comment.createdAt)}
+                                </Text>
+                            </Flex>
+                            <Text mt="8px" fontSize="12px" whiteSpace="pre-wrap">
+                                {comment.body}
+                            </Text>
+                        </Box>
+                    ))}
+                    {!detail.comments.length && (
+                        <Text color="muted" fontSize="12px">
+                            첫 댓글을 남겨보세요.
+                        </Text>
+                    )}
+                </Flex>
+                <Flex mt="10px" gap="8px" align="end">
+                    <Textarea
+                        value={commentBody}
+                        onChange={(event) => onCommentChange(event.target.value)}
+                        placeholder="댓글을 입력하세요"
+                        rows={2}
+                        resize="none"
+                    />
+                    <Button
+                        onClick={onComment}
+                        disabled={!commentBody.trim() || commentBusy}
+                        loading={commentBusy}
+                    >
+                        등록
+                    </Button>
+                </Flex>
+            </Box>
+            {error && (
+                <Alert.Root status="error">
+                    <Alert.Indicator />
+                    <Alert.Title>{error}</Alert.Title>
+                </Alert.Root>
+            )}
+        </Flex>
+    );
+}
+
+function AnswerCard({ answer, onSelect }: { answer: Answer; onSelect: (answer: Answer) => void }) {
+    return (
+        <Panel
+            p="0"
+            overflow="hidden"
+            minW="0"
+            cursor="pointer"
+            role="button"
+            tabIndex={0}
+            onClick={() => void onSelect(answer)}
+            onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") void onSelect(answer);
+            }}
+            _hover={{ transform: "translateY(-2px)", boxShadow: "panel" }}
+            transition="transform .18s ease, box-shadow .18s ease"
+        >
             <Flex px="15px" py="13px" align="center" justify="space-between" gap="10px">
                 <Flex align="center" gap="9px" minW="0">
                     <UserAvatar answer={answer} />
                     <Text fontSize="13px" fontWeight="900" truncate>
                         {answer.nickname}
                     </Text>
+                    <GradeMedalBadge grade={answer.grade} />
                 </Flex>
                 <Badge flex="none" borderRadius="full">
                     {LANGUAGE_LABELS[answer.language] ?? answer.language}
@@ -422,12 +735,87 @@ function AnswerCard({ answer }: { answer: Answer }) {
     );
 }
 
-function UserAvatar({ answer }: { answer: Pick<Answer, "nickname" | "profileImageUrl"> }) {
+function UserAvatar({
+    answer,
+    size = "sm",
+}: {
+    answer: Pick<Answer, "nickname" | "profileImageUrl">;
+    size?: "xs" | "sm";
+}) {
     return (
-        <Avatar.Root size="sm" bg="accentSubtle" color="accent">
+        <Avatar.Root size={size} bg="accentSubtle" color="accent">
             <Avatar.Fallback name={answer.nickname} />
             {answer.profileImageUrl && <Avatar.Image src={answer.profileImageUrl} alt="" />}
         </Avatar.Root>
+    );
+}
+
+function GradeMedalBadge({ grade }: { grade: number }) {
+    const normalizedGrade = Number.isFinite(Number(grade)) ? Number(grade) : 9;
+    const medalColor =
+        normalizedGrade === 1 ? "#c99524" : normalizedGrade <= 6 ? "#8794a3" : "#a86f42";
+    const medalTextColor =
+        normalizedGrade === 1 ? "#fff4c7" : normalizedGrade <= 6 ? "#f5f8fc" : "#ffe8d4";
+    const medalBackground =
+        normalizedGrade === 1 ? "#fff1b8" : normalizedGrade <= 6 ? "#e9edf2" : "#f3dfca";
+    return (
+        <Badge
+            display="inline-flex"
+            alignItems="center"
+            gap="5px"
+            flex="none"
+            borderRadius="full"
+            px="6px"
+            py="3px"
+            bg={medalBackground}
+            color={medalColor}
+            fontSize="10px"
+            lineHeight="1"
+            title={`${normalizedGrade}급`}
+        >
+            <Box
+                display="inline-flex"
+                flexDirection="column"
+                alignItems="center"
+                justifyContent="flex-end"
+                w="18px"
+                h="23px"
+            >
+                <Flex gap="1px" h="5px" align="flex-end">
+                    <Box w="3px" h="5px" bg={medalColor} borderRadius="2px 0 0 0" />
+                    <Box w="3px" h="5px" bg={medalColor} borderRadius="0 2px 0 0" />
+                </Flex>
+                <Box
+                    position="relative"
+                    display="inline-flex"
+                    alignItems="center"
+                    justifyContent="center"
+                    w="18px"
+                    h="18px"
+                    borderRadius="full"
+                    bg={medalColor}
+                    color={medalTextColor}
+                    fontSize="9px"
+                    fontWeight="900"
+                    lineHeight="1"
+                    textAlign="center"
+                    boxShadow="inset 0 0 0 2px rgba(255,255,255,.3)"
+                >
+                    <Text
+                        as="span"
+                        position="absolute"
+                        inset="0"
+                        display="flex"
+                        alignItems="center"
+                        justifyContent="center"
+                        lineHeight="1"
+                        transform="translateY(-1px)"
+                    >
+                        {normalizedGrade}
+                    </Text>
+                </Box>
+            </Box>
+        </Badge>
     );
 }
 

@@ -30,6 +30,8 @@ import { AppButton, FlexLayout } from "@/components/ui";
 import { dashboardGreeting, relativeActivityTime } from "./dashboard-formatters";
 import { DashboardStat, DataCollectionGuide } from "./DashboardWidgets";
 import { ROUTES } from "@/lib/route-paths";
+import { useLocale } from "@/components/LocaleProvider";
+import { translateContent } from "@/lib/i18n";
 
 type DashboardData = {
     generatedAt: string;
@@ -64,6 +66,7 @@ type DashboardData = {
 export default function Dashboard() {
     const [data, setData] = useState<DashboardData | null>(null);
     const [error, setError] = useState("");
+    const { t, locale } = useLocale();
     useEffect(() => {
         let active = true;
         void authGet<DashboardData>("/api/dashboard")
@@ -86,7 +89,7 @@ export default function Dashboard() {
                 <Alert.Root status="error">
                     <Alert.Indicator />
                     <Alert.Content>
-                        <Alert.Title>실제 데이터를 불러오지 못했습니다.</Alert.Title>
+                        <Alert.Title>{t("dashboard.errorTitle")}</Alert.Title>
                         <Alert.Description>{error}</Alert.Description>
                     </Alert.Content>
                 </Alert.Root>
@@ -97,12 +100,21 @@ export default function Dashboard() {
         return (
             <FlexLayout minH="65vh" align="center" justify="center" gap="10px" color="muted">
                 <Spinner size="sm" />
-                <Text>등급과 오늘의 학습 데이터를 불러오는 중입니다.</Text>
+                <Text>{t("dashboard.loading")}</Text>
             </FlexLayout>
         );
     const problem = data.todayProblem;
     const ratio = Math.min(100, Math.round((data.progress.current / data.progress.required) * 100));
-    const dateLabel = dayjs.tz(data.kstDay).format("YYYY년 M월 D일 dddd");
+    const dateLabel = dayjs
+        .tz(data.kstDay)
+        .locale(locale)
+        .format(
+            locale === "ko"
+                ? "YYYY년 M월 D일 dddd"
+                : locale === "ja"
+                  ? "YYYY年M月D日 dddd"
+                  : "MMM D, YYYY dddd",
+        );
     return (
         <Box
             maxW="1390px"
@@ -120,7 +132,7 @@ export default function Dashboard() {
                         letterSpacing="-.04em"
                         mt="7px"
                     >
-                        {dashboardGreeting()}, {data.user.nickname}님.
+                        {dashboardGreeting(t)}, {data.user.nickname}.
                     </Heading>
                 </Box>
                 <FlexLayout align="center" gap="10px">
@@ -130,7 +142,7 @@ export default function Dashboard() {
                         fontSize="13px"
                     >
                         <Box w="8px" h="8px" bg="green.400" borderRadius="full" mr="7px" />
-                        실시간 데이터 연결됨
+                        {t("dashboard.live")}
                     </FlexLayout>
                     <AppButton
                         variant="outline"
@@ -139,7 +151,7 @@ export default function Dashboard() {
                         w="40px"
                         h="40px"
                         p="0"
-                        aria-label="알림"
+                        aria-label={t("header.notifications")}
                     >
                         <Bell size={17} />
                     </AppButton>
@@ -178,7 +190,7 @@ export default function Dashboard() {
                                 color="brand.900"
                                 fontWeight="800"
                             >
-                                오늘의 문제 · {problem.grade}급
+                                {t("dashboard.todayProblem")} · {problem.grade}
                             </Badge>
                             <Badge
                                 borderRadius="full"
@@ -187,7 +199,7 @@ export default function Dashboard() {
                                 bg="whiteAlpha.100"
                                 color="whiteAlpha.800"
                             >
-                                자동 배정
+                                {t("dashboard.autoAssigned")}
                             </Badge>
                         </FlexLayout>
                         <Heading
@@ -199,7 +211,7 @@ export default function Dashboard() {
                             lineHeight="1.25"
                             letterSpacing="-.04em"
                         >
-                            {problem.title}
+                            {translateContent(locale, problem.title)}
                         </Heading>
                         <FlexLayout
                             position="absolute"
@@ -209,7 +221,7 @@ export default function Dashboard() {
                             zIndex="1"
                         >
                             <PrimaryLink href={ROUTES.PROBLEM(problem.slug)}>
-                                문제 풀기 <ArrowRight size={16} />
+                                {t("dashboard.solve")} <ArrowRight size={16} />
                             </PrimaryLink>
                             <AppButton
                                 asChild
@@ -219,7 +231,9 @@ export default function Dashboard() {
                                 borderColor="whiteAlpha.200"
                                 _hover={{ bg: "whiteAlpha.200" }}
                             >
-                                <NextLink href={ROUTES.PROBLEMS}>다른 문제 보기</NextLink>
+                                <NextLink href={ROUTES.PROBLEMS}>
+                                    {t("dashboard.otherProblems")}
+                                </NextLink>
                             </AppButton>
                         </FlexLayout>
                     </Box>
@@ -234,17 +248,16 @@ export default function Dashboard() {
                     >
                         <Database size={28} />
                         <Heading mt="14px" fontSize="19px">
-                            배정 가능한 문제가 없습니다.
+                            {t("dashboard.noProblem")}
                         </Heading>
                         <Text mt="8px" color="muted" fontSize="13px">
-                            관리자가 사용자 등급에 맞는 문제를 게시하면 오늘의 문제가 자동
-                            배정됩니다.
+                            {t("dashboard.noProblemDescription")}
                         </Text>
                     </Panel>
                 )}
                 <Panel display="flex" flexDirection="column" justifyContent="space-between">
                     <Box>
-                        <Eyebrow>GRADE PROGRESS</Eyebrow>
+                        <Eyebrow>{t("dashboard.gradeProgress")}</Eyebrow>
                         <FlexLayout
                             w="92px"
                             h="92px"
@@ -269,13 +282,15 @@ export default function Dashboard() {
                         </FlexLayout>
                         <Heading as="h2" fontSize="20px">
                             {data.progress.next
-                                ? `다음은 ${data.progress.next}급`
-                                : data.progress.label}
+                                ? t("dashboard.nextGrade", { grade: data.progress.next })
+                                : translateContent(locale, data.progress.label)}
                         </Heading>
                     </Box>
                     <Box>
                         <FlexLayout justify="space-between" fontSize="12px" color="muted" mb="8px">
-                            <Text>검증 정답 {data.user.verifiedSolves}문제</Text>
+                            <Text>
+                                {t("dashboard.verifiedSolves", { count: data.user.verifiedSolves })}
+                            </Text>
                             <Text fontWeight="800" color="ink">
                                 {data.progress.current}/{data.progress.required}
                             </Text>
@@ -288,26 +303,30 @@ export default function Dashboard() {
             </Grid>
             <SimpleGrid columns={{ base: 1, md: 3 }} gap="18px" mt="18px">
                 <DashboardStat
-                    label="연속 학습"
-                    value={`${data.stats.streakDays}일`}
+                    label={t("dashboard.streak")}
+                    value={t("dashboard.days", { count: data.stats.streakDays })}
                     hint={
                         data.dataAvailability.hasSolvedHistory
-                            ? "AC가 기록된 날짜 기준"
-                            : "첫 정답부터 집계"
+                            ? t("dashboard.recordedDays")
+                            : t("dashboard.firstSolve")
                     }
                 />
                 <DashboardStat
-                    label="이번 주 정답"
-                    value={`${data.stats.weeklyAccepted}문제`}
-                    hint="중복 문제 제외"
+                    label={t("dashboard.weeklyAccepted")}
+                    value={t("dashboard.problems", { count: data.stats.weeklyAccepted })}
+                    hint={t("dashboard.duplicatesExcluded")}
                 />
                 <DashboardStat
-                    label={`${data.user.grade}급 내 순위`}
-                    value={`${data.stats.gradeRank}위`}
-                    hint={`동급 ${data.stats.gradePopulation}명 · 검증 정답 기준`}
+                    label={t("dashboard.myRank", { grade: data.user.grade })}
+                    value={t("dashboard.rank", { count: data.stats.gradeRank })}
+                    hint={t("dashboard.populationHint", { count: data.stats.gradePopulation })}
                 />
             </SimpleGrid>
-            <SectionHeader title="최근 활동" href={ROUTES.PROFILE} label="전체 기록" />
+            <SectionHeader
+                title={t("dashboard.recentActivity")}
+                href={ROUTES.PROFILE}
+                label={t("dashboard.allRecords")}
+            />
             {data.activities.length ? (
                 <VStack
                     align="stretch"
@@ -350,14 +369,14 @@ export default function Dashboard() {
                                 </FlexLayout>
                                 <Box>
                                     <Text fontSize="13px" fontWeight="800">
-                                        {item.title}
+                                        {translateContent(locale, item.title)}
                                     </Text>
                                     <Text fontSize="11px" color="muted" mt="4px">
-                                        {item.detail}
+                                        {translateContent(locale, item.detail)}
                                     </Text>
                                 </Box>
                                 <Text fontSize="11px" color="muted">
-                                    {relativeActivityTime(item.occurredAt)}
+                                    {relativeActivityTime(item.occurredAt, t)}
                                 </Text>
                             </Grid>
                         );
@@ -367,10 +386,10 @@ export default function Dashboard() {
                 <Panel textAlign="center" py="34px">
                     <ClipboardList size={25} />
                     <Heading mt="12px" fontSize="17px">
-                        아직 활동 기록이 없습니다.
+                        {t("dashboard.noActivity")}
                     </Heading>
                     <Text mt="7px" color="muted" fontSize="12px">
-                        오늘의 문제를 제출하면 채점 결과와 학습 기록이 여기에 쌓입니다.
+                        {t("dashboard.noActivityDescription")}
                     </Text>
                 </Panel>
             )}

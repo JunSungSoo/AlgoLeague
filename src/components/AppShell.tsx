@@ -39,6 +39,7 @@ import {
     currentUser,
     forgetUser,
     rememberUser,
+    SESSION_EXPIRED_EVENT,
     type AuthUser,
 } from "@/lib/auth-client";
 import { canManage } from "@/lib/permissions";
@@ -46,6 +47,17 @@ import { startGlobalLoading } from "@/lib/global-loading";
 import { ROUTES } from "@/lib/route-paths";
 import { useLocale } from "@/components/LocaleProvider";
 import { LOCALE_OPTIONS, type TranslationKey } from "@/lib/i18n";
+
+type AppNotification = {
+    id: string;
+    type: "comment" | "assignment" | "stale";
+    title: string;
+    detail: string;
+    problemTitle: string;
+    problemSlug: string;
+    submissionId: string | null;
+    createdAt: string;
+};
 
 const NAV_ITEMS: Array<{
     href: string;
@@ -153,9 +165,26 @@ function UserAvatar({
 export function AppShell({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<AuthUser | null>(null);
     const [menuOpen, setMenuOpen] = useState(false);
+    const [notifications, setNotifications] = useState<AppNotification[]>([]);
     const pathname = usePathname();
     const router = useRouter();
     const { locale, setLocale, t } = useLocale();
+    useEffect(() => {
+        if (!user || isPublicPath(pathname)) {
+            return;
+        }
+        let active = true;
+        void authGet<{ items: AppNotification[] }>("/api/notifications")
+            .then((result) => {
+                if (active) setNotifications(result.items);
+            })
+            .catch(() => {
+                if (active) setNotifications([]);
+            });
+        return () => {
+            active = false;
+        };
+    }, [pathname, user]);
     useEffect(() => {
         const sync = () => setUser(currentUser());
         const frame = requestAnimationFrame(sync);
@@ -179,7 +208,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             router.replace(ROUTES.LOGIN_WITH_NEXT(pathname));
         };
         const onExpired = () => moveToLogin();
-        window.addEventListener("algorithm-champions-session-expired", onExpired);
+        window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
         void authGet<{ user: AuthUser }>("/api/profile")
             .then((result) => {
                 if (active) {
@@ -193,7 +222,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             });
         return () => {
             active = false;
-            window.removeEventListener("algorithm-champions-session-expired", onExpired);
+            window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
         };
     }, [pathname, router]);
     async function logout() {
@@ -241,11 +270,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 >
                     <MenuIcon size={21} />
                 </IconButton>
-                <Link asChild _hover={{ textDecoration: "none" }}>
-                    <NextLink href="/" aria-label={t("header.home")}>
-                        <Brand name={t("brand.name")} />
-                    </NextLink>
-                </Link>
                 <Box display={{ base: "none", md: "block" }} h="28px" w="1px" bg="line" ml="4px" />
                 <Box display={{ base: "none", md: "block" }}>
                     <Text fontSize="10px" color="muted" letterSpacing=".12em">
@@ -323,9 +347,122 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                             </Menu.Positioner>
                         </Portal>
                     </Menu.Root>
-                    <IconButton aria-label={t("header.notifications")} variant="ghost" color="ink">
-                        <Bell size={18} />
+                    <IconButton asChild aria-label={t("header.home")} variant="ghost" color="ink">
+                        <NextLink href={ROUTES.HOME}>
+                            <Home size={18} />
+                        </NextLink>
                     </IconButton>
+                    <Menu.Root positioning={{ placement: "bottom-end" }}>
+                        <Menu.Trigger asChild>
+                            <Box position="relative">
+                                <IconButton
+                                    aria-label={t("header.notifications")}
+                                    variant="ghost"
+                                    color="ink"
+                                >
+                                    <Bell size={18} />
+                                </IconButton>
+                                {notifications.length > 0 && (
+                                    <Box
+                                        position="absolute"
+                                        top="7px"
+                                        right="7px"
+                                        w="7px"
+                                        h="7px"
+                                        borderRadius="full"
+                                        bg="red.500"
+                                        borderWidth="2px"
+                                        borderColor="surface"
+                                    />
+                                )}
+                            </Box>
+                        </Menu.Trigger>
+                        <Portal>
+                            <Menu.Positioner>
+                                <Menu.Content
+                                    w="340px"
+                                    maxW="calc(100vw - 24px)"
+                                    p="8px"
+                                    bg="surfaceRaised"
+                                    borderColor="line"
+                                    borderWidth="1px"
+                                    borderRadius="14px"
+                                    boxShadow="panel"
+                                >
+                                    <Flex px="10px" py="7px" align="center" justify="space-between">
+                                        <Text fontSize="12px" fontWeight="900">
+                                            {t("header.notifications")}
+                                        </Text>
+                                        {notifications.length > 0 && (
+                                            <Button
+                                                size="xs"
+                                                variant="ghost"
+                                                color="accent"
+                                                onClick={() => setNotifications([])}
+                                            >
+                                                모두 확인
+                                            </Button>
+                                        )}
+                                    </Flex>
+                                    <Box maxH="238px" overflowY="auto">
+                                        {notifications.length ? (
+                                            notifications.map((notification) => (
+                                                <Menu.Item
+                                                    key={notification.id}
+                                                    value={notification.id}
+                                                    borderRadius="10px"
+                                                    px="10px"
+                                                    py="10px"
+                                                    onClick={() => {
+                                                        setNotifications((current) =>
+                                                            current.filter(
+                                                                (item) =>
+                                                                    item.id !== notification.id,
+                                                            ),
+                                                        );
+                                                        router.push(
+                                                            notification.submissionId
+                                                                ? ROUTES.PROBLEM_COMPLETION(
+                                                                      notification.problemSlug,
+                                                                      notification.submissionId,
+                                                                  )
+                                                                : ROUTES.PROBLEM(
+                                                                      notification.problemSlug,
+                                                                  ),
+                                                        );
+                                                    }}
+                                                >
+                                                    <Box minW="0">
+                                                        <Text fontSize="12px" fontWeight="800">
+                                                            {notification.title}
+                                                        </Text>
+                                                        <Text
+                                                            mt="3px"
+                                                            fontSize="11px"
+                                                            color="muted"
+                                                            truncate
+                                                        >
+                                                            {notification.detail}
+                                                        </Text>
+                                                    </Box>
+                                                </Menu.Item>
+                                            ))
+                                        ) : (
+                                            <Text
+                                                px="10px"
+                                                py="28px"
+                                                textAlign="center"
+                                                color="muted"
+                                                fontSize="12px"
+                                            >
+                                                새로운 알림이 없습니다.
+                                            </Text>
+                                        )}
+                                    </Box>
+                                </Menu.Content>
+                            </Menu.Positioner>
+                        </Portal>
+                    </Menu.Root>
                     <Link
                         asChild
                         display={{ base: "none", sm: "block" }}

@@ -6,6 +6,7 @@ import { authGet } from "@/lib/auth-client";
 import { dayjs } from "@/lib/dayjs-config";
 import { GradeBadge, PageHeader, Panel } from "@/components/Primitives";
 import { FlexLayout } from "@/components/ui";
+import { useLocale } from "@/components/LocaleProvider";
 
 type Ranking = {
     grade: number;
@@ -24,6 +25,7 @@ export default function RankingPage() {
     const [grade, setGrade] = useState<number | null>(null);
     const [data, setData] = useState<Ranking | null>(null);
     const [error, setError] = useState("");
+    const { t } = useLocale();
     useEffect(() => {
         let active = true;
         void authGet<{ grade: number }>("/api/grade-progress")
@@ -74,13 +76,13 @@ export default function RankingPage() {
             pb="60px"
         >
             <PageHeader
-                eyebrow="GRADE RANKING"
-                title={`${grade ?? "-"}급 랭킹`}
+                eyebrow={t("ranking.eyebrow")}
+                title={t("ranking.title", { grade: grade ?? "-" })}
                 action={
                     <FlexLayout align="center" gap="9px">
                         <NativeSelect.Root w="110px">
                             <NativeSelect.Field
-                                aria-label="랭킹 등급"
+                                aria-label={t("ranking.gradeLabel")}
                                 value={grade ?? ""}
                                 onChange={(event) => changeGrade(Number(event.target.value))}
                             >
@@ -94,7 +96,7 @@ export default function RankingPage() {
                         </NativeSelect.Root>
                         {currentData && (
                             <GradeBadge subtle>
-                                {relativeTime(currentData.generatedAt)} 집계
+                                {relativeTime(currentData.generatedAt, t)} {t("ranking.aggregated")}
                             </GradeBadge>
                         )}
                     </FlexLayout>
@@ -117,7 +119,7 @@ export default function RankingPage() {
                     color="muted"
                 >
                     <Spinner size="sm" />
-                    <Text>등급별 순위를 계산하는 중입니다.</Text>
+                    <Text>{t("ranking.calculating")}</Text>
                 </FlexLayout>
             ) : (
                 <Panel maxW="850px" p="0" overflow="hidden">
@@ -125,17 +127,21 @@ export default function RankingPage() {
                         <Table.Root size="md">
                             <Table.Header>
                                 <Table.Row>
-                                    {["순위", "학습자", "검증 정답", "정답률", "최근 활동"].map(
-                                        (label) => (
-                                            <Table.ColumnHeader
-                                                key={label}
-                                                color="muted"
-                                                fontSize="11px"
-                                            >
-                                                {label}
-                                            </Table.ColumnHeader>
-                                        ),
-                                    )}
+                                    {[
+                                        t("ranking.rank"),
+                                        t("ranking.learner"),
+                                        t("ranking.verifiedSolves"),
+                                        t("ranking.acceptanceRate"),
+                                        t("ranking.recentActivity"),
+                                    ].map((label) => (
+                                        <Table.ColumnHeader
+                                            key={label}
+                                            color="muted"
+                                            fontSize="11px"
+                                        >
+                                            {label}
+                                        </Table.ColumnHeader>
+                                    ))}
                                 </Table.Row>
                             </Table.Header>
                             <Table.Body>
@@ -153,18 +159,19 @@ export default function RankingPage() {
                                         </Table.Cell>
                                         <Table.Cell fontWeight="800">
                                             {row.nickname}
-                                            {row.userId === currentData.currentUserId && " · 나"}
+                                            {row.userId === currentData.currentUserId &&
+                                                ` · ${t("ranking.me")}`}
                                         </Table.Cell>
                                         <Table.Cell>{row.verifiedSolves}</Table.Cell>
                                         <Table.Cell>
                                             {row.acceptanceRate == null
-                                                ? "집계 전"
+                                                ? t("catalog.beforeAggregation")
                                                 : `${row.acceptanceRate}%`}
                                         </Table.Cell>
                                         <Table.Cell>
                                             {row.lastActivityAt
-                                                ? relativeTime(row.lastActivityAt)
-                                                : "활동 없음"}
+                                                ? relativeTime(row.lastActivityAt, t)
+                                                : t("ranking.noActivity")}
                                         </Table.Cell>
                                     </Table.Row>
                                 ))}
@@ -173,7 +180,7 @@ export default function RankingPage() {
                     </Table.ScrollArea>
                     {!currentData.items.length && (
                         <Text p="30px" textAlign="center" color="muted">
-                            이 등급의 학습자가 아직 없습니다.
+                            {t("ranking.noLearners")}
                         </Text>
                     )}
                 </Panel>
@@ -187,8 +194,8 @@ export default function RankingPage() {
         </Box>
     );
 }
-function relativeTime(value: string) {
+function relativeTime(value: string, t: (key: "ranking.justNow") => string) {
     const minutes = Math.max(0, dayjs().diff(dayjs(value), "minute"));
-    if (minutes < 1) return "방금";
+    if (minutes < 1) return t("ranking.justNow");
     return dayjs(value).fromNow();
 }

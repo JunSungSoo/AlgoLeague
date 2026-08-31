@@ -36,7 +36,6 @@ export async function proxy(request: NextRequest) {
         response.cookies.delete("ac_session");
         return response;
     }
-    if (session && isPublic) return NextResponse.redirect(new URL(ROUTES.HOME, request.url));
     if (
         session &&
         request.nextUrl.pathname.startsWith(ROUTES.ADMIN) &&

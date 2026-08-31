@@ -55,14 +55,15 @@ describe("route access proxy", () => {
             "http://localhost:3000/login?next=%2Franking",
         );
     });
-    it("redirects a signed-in user away from login", async () => {
+    it("allows the login page when a stale signed cookie remains", async () => {
         const token = await session();
         const response = await proxy(
             new NextRequest(`http://localhost:3000${ROUTES.LOGIN}`, {
                 headers: { cookie: `ac_session=${token}` },
             }),
         );
-        expect(response.headers.get("location")).toBe("http://localhost:3000/");
+        expect(response.status).toBe(200);
+        expect(response.headers.get("location")).toBeNull();
     });
     it("blocks a learner from administrator pages", async () => {
         const token = await session();
